@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cycle Time Monitoring</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        html, body {
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+        .process-btn {
+            min-width: 160px;
+            min-height: 8vh;
+            font-size: clamp(14px, 2.2vh, 22px);
+            font-weight: 700;
+            padding: 1.5vh 24px;
+            border-radius: 16px;
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+            z-index: 10;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .process-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.6s;
+            z-index: 1;
+        }
+
+        .process-btn::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at center, rgba(255,255,255,0.1) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .process-btn:hover {
+            transform: translateY(-6px) scale(1.05);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.18), 0 8px 16px rgba(0,0,0,0.12);
+            border-color: rgba(255,255,255,0.3);
+            z-index: 100;
+        }
+
+        .process-btn:hover::before {
+            left: 100%;
+        }
+
+        .process-btn:hover::after {
+            opacity: 1;
+        }
+
+        .process-btn:active {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15), 0 4px 8px rgba(0,0,0,0.1);
+            transition: all 0.15s ease;
+            z-index: 100;
+        }
+
+        .process-btn.last-clicked {
+            animation: professionalPress 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%) !important;
+            border-color: #4a5568 !important;
+            z-index: 1000;
+        }
+
+        @keyframes professionalPress {
+            0% {
+                transform: scale(1) translateY(0);
+                box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            }
+            25% {
+                transform: scale(0.95) translateY(8px);
+                box-shadow: 0 4px 16px rgba(0,0,0,0.2), inset 0 2px 8px rgba(0,0,0,0.2);
+            }
+            50% {
+                transform: scale(0.94) translateY(10px);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.25), inset 0 4px 12px rgba(0,0,0,0.3);
+            }
+            75% {
+                transform: scale(0.97) translateY(4px);
+                box-shadow: 0 6px 20px rgba(0,0,0,0.18), inset 0 2px 6px rgba(0,0,0,0.15);
+            }
+            100% {
+                transform: scale(1) translateY(0);
+                box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            }
+        }
+
+        .process-btn.pressed-indicator {
+            position: relative;
+        }
+
+        .process-btn.pressed-indicator::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: -6px;
+            right: -6px;
+            bottom: -6px;
+            background: linear-gradient(45deg, #667eea, #764ba2, #f093fb, #f5576c);
+            background-size: 400% 400%;
+            border-radius: 24px;
+            z-index: -1;
+            animation: professionalGradient 4s ease infinite;
+            opacity: 0;
+            transition: opacity 0.6s;
+        }
+
+        .process-btn.pressed-indicator.active::before {
+            opacity: 1;
+        }
+
+        @keyframes professionalGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .process-btn.depressed {
+            animation: professionalDepress 0.6s ease-out;
+        }
+
+        @keyframes professionalDepress {
+            0% {
+                transform: scale(1) translateY(0);
+                box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            }
+            50% {
+                transform: scale(0.92) translateY(12px);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15), inset 0 6px 16px rgba(0,0,0,0.25);
+            }
+            100% {
+                transform: scale(1) translateY(0);
+                box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+            }
+        }
+
+        /* Button container for better spacing */
+        .process-buttons-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: clamp(8px, 1.5vh, 20px);
+            margin-bottom: clamp(10px, 2vh, 28px);
+        }
+
+        /* Center only Process 9 button */
+        .process-9-centered {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            margin-top: clamp(8px, 1.5vh, 20px);
+        }
+
+        .btn-control {
+            min-width: 170px;
+            font-size: clamp(16px, 2.4vh, 24px);
+            font-weight: bold;
+            padding: clamp(8px, 1.4vh, 14px) 24px;
+            border-radius: 14px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4), 0 3px 6px rgba(0,0,0,0.3);
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            position: relative;
+            transform: translateY(0);
+            cursor: pointer;
+        }
+
+        .btn-control:hover {
+            box-shadow: 0 12px 30px rgba(0,0,0,0.45), 0 4px 8px rgba(0,0,0,0.35);
+            transform: translateY(-3px) scale(1.02);
+        }
+
+        .btn-control:active {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.15);
+            transform: translateY(3px) scale(0.98);
+            transition: all 0.05s ease;
+        }
+
+        /* Height-responsive adjustments */
+        @media (max-height: 900px) {
+            .container-fluid.p-5 {
+                padding: 2vh 20px !important;
+            }
+            .container.mt-4 {
+                margin-top: 1.5vh !important;
+            }
+            .container.mt-4 h2 {
+                margin-bottom: 1.5vh !important;
+            }
+            .process-btn {
+                min-height: 7vh;
+                padding: 1.2vh 20px;
+            }
+            .d-flex.flex-wrap.gap-3 {
+                margin-top: 2vh !important;
+            }
+        }
+
+        @media (max-height: 750px) {
+            .container-fluid.p-5 {
+                padding: 1.5vh 20px !important;
+            }
+            .container-fluid.p-5 h1 {
+                font-size: clamp(16px, 3vh, 28px);
+            }
+            .container.mt-4 {
+                margin-top: 1vh !important;
+            }
+            .container.mt-4 h2 {
+                font-size: clamp(14px, 2.5vh, 20px);
+                margin-bottom: 1vh !important;
+            }
+            .process-buttons-container {
+                gap: 1vh;
+                margin-bottom: 1vh;
+            }
+            .process-btn {
+                min-height: 6vh;
+                font-size: clamp(12px, 1.8vh, 18px);
+                padding: 1vh 14px;
+                border-radius: 10px;
+                letter-spacing: 0.5px;
+                gap: 6px;
+            }
+            .process-9-centered {
+                margin-top: 1vh;
+            }
+            .btn-control {
+                font-size: clamp(12px, 2vh, 20px);
+                padding: 1vh 16px;
+            }
+            .d-flex.flex-wrap.gap-3 {
+                gap: 8px !important;
+                margin-top: 1.5vh !important;
+            }
+        }
+
+        @media (max-height: 600px) {
+            .container-fluid.p-5 {
+                padding: 1vh 15px !important;
+            }
+            .container-fluid.p-5 h1 {
+                font-size: clamp(14px, 2.5vh, 22px);
+            }
+            .container-fluid.p-5 p {
+                display: none;
+            }
+            .container.mt-4 {
+                margin-top: 0.5vh !important;
+            }
+            .container.mt-4 h2 {
+                font-size: clamp(12px, 2vh, 16px);
+                margin-bottom: 0.5vh !important;
+                padding: 0.5vh 12px;
+                min-height: unset;
+            }
+            .process-buttons-container {
+                gap: 0.6vh;
+                margin-bottom: 0.6vh;
+            }
+            .process-btn {
+                min-height: 5vh;
+                min-width: unset;
+                font-size: clamp(10px, 1.5vh, 14px);
+                padding: 0.6vh 10px;
+                border-radius: 8px;
+                gap: 4px;
+            }
+            .process-9-centered {
+                margin-top: 0.6vh;
+            }
+            .btn-control {
+                font-size: clamp(10px, 1.6vh, 16px);
+                padding: 0.6vh 12px;
+                min-width: 120px;
+                min-height: unset;
+            }
+            .d-flex.flex-wrap.gap-3 {
+                gap: 5px !important;
+                margin-top: 1vh !important;
+            }
+        }
+
+        @media (max-height: 480px) {
+            .container-fluid.p-5 {
+                padding: 0.5vh 10px !important;
+            }
+            .container-fluid.p-5 h1 {
+                font-size: clamp(12px, 2vh, 18px);
+            }
+            .container.mt-4 h2 {
+                display: none;
+            }
+            .process-buttons-container {
+                gap: 0.4vh;
+                margin-bottom: 0.4vh;
+            }
+            .process-btn {
+                min-height: 4.5vh;
+                font-size: clamp(9px, 1.3vh, 12px);
+                padding: 0.4vh 6px;
+                border-radius: 6px;
+            }
+            .process-9-centered {
+                margin-top: 0.4vh;
+            }
+            .btn-control {
+                font-size: clamp(9px, 1.4vh, 14px);
+                padding: 0.4vh 8px;
+                min-width: 90px;
+            }
+            .d-flex.flex-wrap.gap-3 {
+                gap: 3px !important;
+                margin-top: 0.5vh !important;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container-fluid p-5 bg-primary text-white text-center">
+        <h1 class="btn-control bg-primary text-white border-0">Cycle Time Monitoring</h1>
+        <p></p>
+    </div>
+
+    <div class="container mt-4">
+        <h2 class="mb-4 btn-control bg-light text-dark border-0">Home</h2>
+
+        <div class="process-buttons-container">
+            <a href="/process1" class="btn process-btn">
+                <span>▶️</span>
+                <span>Process 1</span>
+            </a>
+            <a href="/process2" class="btn process-btn">
+                <span>▶️</span>
+                <span>Process 2</span>
+            </a>
+            <a href="/process3" class="btn process-btn">
+                <span>▶️</span>
+                <span>Process 3</span>
+            </a>
+            <a href="/process4" class="btn process-btn">
+                <span>▶️</span>
+                <span>Process 4</span>
+            </a>
+            <a href="/process5" class="btn process-btn">
+                <span>▶️</span>
+                <span>Process 5</span>
+            </a>
+            <a href="/process6" class="btn process-btn">
+                <span>▶️</span>
+                <span>Process 6</span>
+            </a>
+            <a href="/process7" class="btn process-btn">
+                <span>▶️</span>
+                <span>Process 7</span>
+            </a>
+            <a href="/process8" class="btn process-btn">
+                <span>▶️</span>
+                <span>Process 8</span>
+            </a>
+        </div>
+
+        <div class="process-9-centered">
+            <a href="/process9" class="btn process-btn">
+                <span>▶️</span>
+                <span>Process 9</span>
+            </a>
+        </div>
+
+        <div class="d-flex flex-wrap gap-3 justify-content-center mt-5">
+            <button class="btn btn-danger btn-control" onclick="resetAllCounters()">RESET ALL COUNTERS</button>
+            <a href="/settings" class="btn btn-secondary btn-control text-white text-decoration-none">⚙️ SETTINGS</a>
+            <a href="/cycle_graph" class="btn btn-info btn-control text-white text-decoration-none">📊 CYCLE GRAPH</a>
+            <a href="/line_trend" class="btn btn-info btn-control text-white text-decoration-none">📈 LINE TREND GRAPH</a>
+        </div>
+    </div>
+
+    <script>
+        localStorage.removeItem('process2_kitting');
+        
+        // Reset all counters to 0
+        function resetAllCounters() {
+            if (confirm('Are you sure you want to reset all counters to 0?')) {
+                for (let i = 1; i <= 9; i++) {
+                    localStorage.setItem(`process${i}_counter`, '0');
+                    // Reset individual process flags so START can trigger again on first opening
+                    localStorage.removeItem(`process${i}_opened`);
+                    // Reset the has_started flags so START can trigger again on first opening
+                    localStorage.removeItem(`process${i}_has_started`);
+                    // Clear timer states so stale timers don't restore
+                    localStorage.removeItem(`process${i}_timer_state`);
+                    localStorage.removeItem(`process${i}_timer_start`);
+                    localStorage.removeItem(`process${i}_active_kitting`);
+                }
+                // Reset last visited process tracking
+                localStorage.removeItem('last_visited_process');
+                localStorage.removeItem('lastvisitedProcess');
+                localStorage.removeItem('lastVisitedProcess');
+                // Reset process start clicked flags
+                for (let i = 1; i <= 9; i++) {
+                    localStorage.removeItem(`process${i}_start_clicked`);
+                    localStorage.removeItem(`process ${i}_start_clicked`);
+                }
+                // Reset blocked counters for all processes
+                for (let i = 1; i <= 9; i++) {
+                    const blockedKey = `process${i}_blocked_counters`;
+                    const blockedData = localStorage.getItem(blockedKey);
+                    if (blockedData) {
+                        console.log(`Removing blocked counters for process ${i}:`, blockedData);
+                        localStorage.removeItem(blockedKey);
+                    }
+                }
+                localStorage.removeItem('process2_kitting');
+                // Also clear server-side timers, counters, and state file
+                fetch('/api/reset_all', { method: 'POST' })
+                    .then(r => r.json())
+                    .then(d => console.log('Server reset:', d))
+                    .catch(e => console.error('Server reset error:', e));
+                alert('All counters have been reset to 0');
+                console.log('All counters manually reset to 0 and cleared has_started flags and blocked counters');
+            }
+        }
+
+        // Check if all processes have equal counters and reset if they do
+        function checkAndResetAllCounters() {
+            const counters = [];
+            for (let i = 1; i <= 9; i++) {
+                const value = localStorage.getItem(`process${i}_counter`);
+                counters.push(value !== null ? parseInt(value) : 0);
+            }
+            
+            // Check if all counters are equal and not all zero
+            if (counters.length > 0 && counters.every(val => val === counters[0]) && counters[0] > 0) {
+                // Reset all counters to 0
+                for (let i = 1; i <= 9; i++) {
+                    localStorage.setItem(`process${i}_counter`, '0');
+                    // Reset the has_started flags so START can trigger again on first opening
+                    localStorage.removeItem(`process${i}_has_started`);
+                    // Reset the opened flags so START can trigger again on first opening
+                    localStorage.removeItem(`process${i}_opened`);
+                    // Clear timer states so stale timers don't restore
+                    localStorage.removeItem(`process${i}_timer_state`);
+                    localStorage.removeItem(`process${i}_timer_start`);
+                    localStorage.removeItem(`process${i}_active_kitting`);
+                }
+                // Reset last visited process tracking
+                localStorage.removeItem('last_visited_process');
+                localStorage.removeItem('lastvisitedProcess');
+                localStorage.removeItem('lastVisitedProcess');
+                // Reset process start clicked flags
+                for (let i = 1; i <= 9; i++) {
+                    localStorage.removeItem(`process${i}_start_clicked`);
+                    localStorage.removeItem(`process ${i}_start_clicked`);
+                }
+                // Reset blocked counters for all processes
+                for (let i = 1; i <= 9; i++) {
+                    const blockedKey = `process${i}_blocked_counters`;
+                    const blockedData = localStorage.getItem(blockedKey);
+                    if (blockedData) {
+                        console.log(`Auto-removing blocked counters for process ${i}:`, blockedData);
+                        localStorage.removeItem(blockedKey);
+                    }
+                }
+                localStorage.removeItem('process2_kitting');
+                // Also clear server-side timers, counters, and state file
+                fetch('/api/reset_all', { method: 'POST' })
+                    .then(r => r.json())
+                    .then(d => console.log('Server auto-reset:', d))
+                    .catch(e => console.error('Server auto-reset error:', e));
+                console.log('All counters were equal, reset to 0 and cleared has_started, opened flags, and blocked counters');
+            }
+        }
+
+        // Track process button clicks with ultra-deep press feedback
+        function trackProcessClick(processNumber, buttonElement) {
+            // Remove previous tracking states
+            document.querySelectorAll('.process-btn').forEach(btn => {
+                btn.classList.remove('last-clicked', 'pressed-indicator', 'active', 'depressed');
+            });
+
+            // Add ultra-deep press animation
+            buttonElement.classList.add('last-clicked');
+            
+            // Add pressed indicator with gradient border
+            buttonElement.classList.add('pressed-indicator', 'active');
+            
+            // Store the last clicked process
+            localStorage.setItem('last_visited_process', processNumber.toString());
+            
+            // Add secondary depression effect
+            setTimeout(() => {
+                buttonElement.classList.add('depressed');
+            }, 600);
+            
+            // Remove the animation classes after animations complete
+            setTimeout(() => {
+                buttonElement.classList.remove('last-clicked', 'depressed');
+                // Keep the pressed-indicator active permanently as a mark
+            }, 1200);
+        }
+
+        // Add click event listeners to all process buttons
+        function addProcessButtonListeners() {
+            const processButtons = document.querySelectorAll('.process-btn');
+            processButtons.forEach((button, index) => {
+                const processNumber = index + 1;
+                
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    trackProcessClick(processNumber, button);
+                    
+                    // Navigate to the process page after the animation
+                    setTimeout(() => {
+                        window.location.href = button.href;
+                    }, 600);
+                });
+            });
+        }
+
+        // Restore pressed state on page load (permanent mark - immediate)
+        function restorePressedState() {
+            const lastVisited = localStorage.getItem('last_visited_process');
+            if (lastVisited) {
+                const processNumber = parseInt(lastVisited);
+                const button = document.querySelector(`a[href="/process${processNumber}"]`);
+                if (button) {
+                    // Add permanent pressed indicator immediately - no delay
+                    button.classList.add('pressed-indicator', 'active');
+                }
+            }
+        }
+
+        // Check when page loads
+        window.addEventListener('load', () => {
+            // Remove SHARED_DROPDOWN_ITEMS from localStorage
+            localStorage.removeItem('SHARED_DROPDOWN_ITEMS');
+            localStorage.removeItem('shared_dropdown_items');
+            console.log('SHARED_DROPDOWN_ITEMS removed from localStorage');
+            
+            checkAndResetAllCounters();
+            addProcessButtonListeners();
+            restorePressedState();
+        });
+    </script>
+
+</body>
+</html>
