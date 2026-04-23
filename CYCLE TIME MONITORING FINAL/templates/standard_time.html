@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standard Time Configuration - Cycle Time Monitoring</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        body {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background: #1a1a2e;
+            padding: clamp(8px, 1.5vh, 20px);
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: clamp(8px, 2vh, 30px);
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: clamp(18px, 3.6vh, 36px);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+        
+        .process-list {
+            background: #2d2d44;
+            border-radius: 10px;
+            padding: clamp(10px, 2.5vh, 30px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+        
+        .table-header {
+            display: grid;
+            grid-template-columns: 80px 1fr 200px 80px;
+            gap: 20px;
+            padding: clamp(6px, 1.2vh, 15px) 20px;
+            font-weight: bold;
+            font-size: clamp(12px, 1.8vh, 18px);
+            color: #ccc;
+            border-bottom: 2px solid #444;
+            margin-bottom: clamp(4px, 0.8vh, 10px);
+        }
+        
+        .process-item {
+            display: grid;
+            grid-template-columns: 80px 1fr 200px 80px;
+            gap: 20px;
+            align-items: center;
+            padding: clamp(4px, 1vh, 12px) 20px;
+            margin-bottom: clamp(2px, 0.4vh, 5px);
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .process-item:hover {
+            background: #3d3d5c;
+        }
+        
+        .process-no {
+            font-size: clamp(12px, 1.8vh, 18px);
+            font-weight: bold;
+        }
+        
+        .process-title {
+            font-size: clamp(12px, 1.8vh, 18px);
+            font-weight: bold;
+        }
+        
+        .process-st {
+            font-size: clamp(12px, 1.8vh, 18px);
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        .edit-btn {
+            background: transparent;
+            color: #ff6b6b;
+            border: none;
+            padding: clamp(4px, 0.8vh, 8px) 15px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: clamp(12px, 1.6vh, 16px);
+            font-family: 'Consolas', 'Courier New', monospace;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .edit-btn:hover {
+            color: #ff4757;
+            text-decoration: underline;
+        }
+        
+        .add-process-container {
+            text-align: center;
+            margin-top: clamp(8px, 2vh, 30px);
+        }
+        
+        .add-process-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: clamp(8px, 1.2vh, 15px) 40px;
+            border-radius: 25px;
+            font-size: clamp(13px, 1.8vh, 18px);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+        }
+        
+        .add-process-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        
+        .delete-process-btn {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+            border: none;
+            padding: clamp(8px, 1.2vh, 15px) 40px;
+            border-radius: 25px;
+            font-size: clamp(13px, 1.8vh, 18px);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+        }
+        
+        .delete-process-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        
+        .delete-selected-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .delete-selected-btn.show {
+            display: inline-block;
+        }
+        
+        .process-checkbox {
+            display: none;
+            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .process-item.delete-mode .process-checkbox {
+            display: inline-block;
+        }
+        
+        .process-item.delete-mode {
+            background: rgba(255, 193, 7, 0.2);
+            border: 1px solid #ffc107;
+        }
+        
+        .back-btn {
+            display: inline-block;
+            background: #6c757d;
+            color: white;
+            padding: clamp(6px, 1vh, 12px) 30px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: clamp(8px, 1.5vh, 20px);
+            transition: all 0.3s ease;
+        }
+        
+        .back-btn:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 450px;
+            text-align: center;
+            color: #333;
+        }
+        
+        .modal h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .modal label {
+            display: block;
+            text-align: left;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        
+        .modal input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        
+        .modal-btn {
+            padding: 10px 30px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .save-btn {
+            background: #28a745;
+            color: white;
+        }
+        
+        .save-btn:hover {
+            background: #218838;
+        }
+        
+        .cancel-btn {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .cancel-btn:hover {
+            background: #c82333;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #aaa;
+            padding: 50px;
+        }
+
+        /* Height-responsive adjustments */
+        @media (max-height: 800px) {
+            .header {
+                margin-bottom: 1.5vh;
+            }
+            .header h1 {
+                font-size: clamp(16px, 3vh, 30px);
+            }
+            .process-list {
+                padding: 1.5vh 20px;
+            }
+            .table-header {
+                padding: 1vh 15px;
+                font-size: clamp(11px, 1.5vh, 15px);
+            }
+            .table-header,
+            .process-item {
+                grid-template-columns: 60px 1fr 150px 60px;
+                gap: 12px;
+            }
+            .process-item {
+                padding: 0.8vh 15px;
+                margin-bottom: 0.3vh;
+            }
+            .process-no, .process-title, .process-st {
+                font-size: clamp(11px, 1.5vh, 15px);
+            }
+            .add-process-container {
+                margin-top: 1.5vh;
+            }
+            .add-process-btn, .delete-process-btn {
+                padding: 1vh 30px;
+                font-size: clamp(12px, 1.5vh, 15px);
+            }
+            .back-btn {
+                margin-top: 1vh;
+                padding: 0.8vh 25px;
+            }
+        }
+
+        @media (max-height: 600px) {
+            body {
+                padding: 0.8vh 10px;
+            }
+            .header {
+                margin-bottom: 0.8vh;
+            }
+            .header h1 {
+                font-size: clamp(14px, 2.5vh, 24px);
+            }
+            .process-list {
+                padding: 1vh 10px;
+                border-radius: 8px;
+            }
+            .table-header {
+                padding: 0.6vh 10px;
+                font-size: clamp(10px, 1.3vh, 13px);
+                margin-bottom: 0.3vh;
+            }
+            .table-header,
+            .process-item {
+                grid-template-columns: 50px 1fr 100px 50px;
+                gap: 8px;
+            }
+            .process-item {
+                padding: 0.5vh 10px;
+                margin-bottom: 0.2vh;
+            }
+            .process-no, .process-title, .process-st {
+                font-size: clamp(10px, 1.3vh, 14px);
+            }
+            .edit-btn {
+                font-size: clamp(10px, 1.2vh, 13px);
+                padding: 0.4vh 8px;
+            }
+            .add-process-container {
+                margin-top: 1vh;
+            }
+            .add-process-btn, .delete-process-btn {
+                padding: 0.8vh 20px;
+                font-size: clamp(11px, 1.3vh, 14px);
+            }
+            .back-btn {
+                margin-top: 0.8vh;
+                padding: 0.6vh 20px;
+                font-size: clamp(11px, 1.3vh, 14px);
+            }
+            .modal-content {
+                width: 90%;
+                padding: 2vh 15px;
+                margin: 10% auto;
+            }
+        }
+
+        @media (max-height: 450px) {
+            body {
+                padding: 0.5vh 8px;
+            }
+            .header {
+                margin-bottom: 0.4vh;
+            }
+            .header h1 {
+                font-size: clamp(12px, 2vh, 20px);
+            }
+            .process-list {
+                padding: 0.6vh 8px;
+            }
+            .table-header {
+                padding: 0.3vh 8px;
+                font-size: clamp(9px, 1.1vh, 11px);
+            }
+            .process-item {
+                padding: 0.3vh 8px;
+            }
+            .process-no, .process-title, .process-st {
+                font-size: clamp(9px, 1.1vh, 12px);
+            }
+            .edit-btn {
+                font-size: clamp(9px, 1vh, 11px);
+                padding: 0.2vh 6px;
+            }
+            .add-process-btn, .delete-process-btn {
+                padding: 0.5vh 15px;
+                font-size: clamp(10px, 1.1vh, 12px);
+            }
+            .back-btn {
+                margin-top: 0.5vh;
+                padding: 0.4vh 15px;
+                font-size: clamp(10px, 1.1vh, 12px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>STANDARD TIME CONFIGURATION</h1>
+    </div>
+    
+    <div class="container">
+        <div class="process-list">
+            <div class="table-header">
+                <span>Process</span>
+                <span>Title</span>
+                <span>Default ST (min)</span>
+                <span></span>
+            </div>
+            <div id="processList">
+                <div class="loading">Loading standard times...</div>
+            </div>
+        </div>
+        
+        <div class="add-process-container">
+            <button class="add-process-btn" onclick="showAddProcessModal()">
+                + Add Process
+            </button>
+            <button class="delete-process-btn" onclick="toggleDeleteMode()">
+                Delete Process
+            </button>
+        </div>
+        
+        <div style="text-align: center;">
+            <button class="delete-selected-btn" id="deleteSelectedBtn" onclick="deleteSelectedProcesses()">
+                Delete Selected Processes
+            </button>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="/settings" class="back-btn">Back to Settings</a>
+        </div>
+    </div>
+    
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h3 id="modalTitle">Edit Standard Time</h3>
+            <label for="titleInput">Process Title</label>
+            <input type="text" id="titleInput" placeholder="Enter process title">
+            <label for="timeInput">Default ST (min)</label>
+            <input type="number" id="timeInput" min="0.01" max="99.99" step="0.01" value="1.50">
+            <div class="modal-buttons">
+                <button class="modal-btn save-btn" onclick="saveTime()">Save</button>
+                <button class="modal-btn cancel-btn" onclick="closeEditModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentProcessNo = null;
+        let standardTimes = [];
+        let deleteMode = false;
+        
+        // Load standard times on page load
+        window.onload = function() {
+            loadStandardTimes();
+        };
+        
+        function loadStandardTimes() {
+            fetch('/api/get_standard_times')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        standardTimes = data.standard_times;
+                        displayProcesses();
+                    } else {
+                        alert('Failed to load standard times');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error loading standard times');
+                });
+        }
+        
+        function displayProcesses() {
+            const processList = document.getElementById('processList');
+            processList.innerHTML = '';
+            
+            standardTimes.forEach(process => {
+                const processItem = document.createElement('div');
+                processItem.className = 'process-item';
+                if (deleteMode) {
+                    processItem.classList.add('delete-mode');
+                }
+                
+                const title = process.title || 'Process ' + process.process_no;
+                
+                processItem.innerHTML = `
+                    <input type="checkbox" class="process-checkbox" value="${process.process_no}">
+                    <span class="process-no">${process.process_no}</span>
+                    <span class="process-title">${title}</span>
+                    <span class="process-st">${process.standard_time}</span>
+                    <button class="edit-btn" onclick="showEditModal(${process.process_no}, ${process.standard_time}, '${title.replace(/'/g, "\\'")}')">EDIT</button>
+                `;
+                processList.appendChild(processItem);
+            });
+            
+            updateDeleteButton();
+        }
+        
+        function toggleDeleteMode() {
+            deleteMode = !deleteMode;
+            const processItems = document.querySelectorAll('.process-item');
+            const deleteBtn = document.querySelector('.delete-process-btn');
+            
+            if (deleteMode) {
+                processItems.forEach(item => item.classList.add('delete-mode'));
+                deleteBtn.textContent = 'Cancel Delete';
+                deleteBtn.style.background = 'linear-gradient(135deg, #6c757d 0%, #5a6268 100%)';
+            } else {
+                processItems.forEach(item => {
+                    item.classList.remove('delete-mode');
+                    const checkbox = item.querySelector('.process-checkbox');
+                    if (checkbox) checkbox.checked = false;
+                });
+                deleteBtn.textContent = 'Delete Process';
+                deleteBtn.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+                document.getElementById('deleteSelectedBtn').classList.remove('show');
+            }
+        }
+        
+        function updateDeleteButton() {
+            const checkboxes = document.querySelectorAll('.process-checkbox:checked');
+            const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+            
+            if (checkboxes.length > 0 && deleteMode) {
+                deleteSelectedBtn.classList.add('show');
+                deleteSelectedBtn.textContent = `Delete Selected Processes (${checkboxes.length})`;
+            } else {
+                deleteSelectedBtn.classList.remove('show');
+            }
+        }
+        
+        function deleteSelectedProcesses() {
+            const checkboxes = document.querySelectorAll('.process-checkbox:checked');
+            const processesToDelete = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            
+            if (processesToDelete.length === 0) {
+                alert('Please select at least one process to delete');
+                return;
+            }
+            
+            if (confirm(`Are you sure you want to delete ${processesToDelete.length} process(es)?\n\nProcesses: ${processesToDelete.join(', ')}`)) {
+                let deletePromises = processesToDelete.map(processNo => 
+                    fetch('/api/delete_process', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ process_no: processNo })
+                    })
+                );
+                
+                Promise.all(deletePromises)
+                    .then(responses => Promise.all(responses.map(r => r.json())))
+                    .then(results => {
+                        const failed = results.filter(r => !r.success);
+                        if (failed.length === 0) {
+                            loadStandardTimes();
+                            toggleDeleteMode();
+                            alert('Processes deleted successfully');
+                        } else {
+                            alert(`Failed to delete ${failed.length} process(es)`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error deleting processes');
+                    });
+            }
+        }
+        
+        // Add event listener for checkbox changes
+        document.addEventListener('change', function(e) {
+            if (e.target.classList.contains('process-checkbox')) {
+                updateDeleteButton();
+            }
+        });
+        
+        function showEditModal(processNo, currentTime, currentTitle) {
+            currentProcessNo = processNo;
+            document.getElementById('modalTitle').textContent = `Edit Process ${processNo}`;
+            document.getElementById('titleInput').value = currentTitle || '';
+            document.getElementById('timeInput').value = currentTime;
+            document.getElementById('editModal').style.display = 'block';
+        }
+        
+        function showAddProcessModal() {
+            const nextProcessNo = standardTimes.length > 0 ? 
+                Math.max(...standardTimes.map(p => p.process_no)) + 1 : 1;
+            currentProcessNo = null;
+            document.getElementById('modalTitle').textContent = `Add Process ${nextProcessNo}`;
+            document.getElementById('titleInput').value = '';
+            document.getElementById('timeInput').value = 1.50;
+            document.getElementById('editModal').style.display = 'block';
+        }
+        
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+            currentProcessNo = null;
+        }
+        
+        function saveTime() {
+            const newTime = document.getElementById('timeInput').value;
+            const newTitle = document.getElementById('titleInput').value.trim();
+            
+            if (!newTime || newTime < 0.01 || newTime > 99.99) {
+                alert('Please enter a valid time between 0.01 and 99.99 minutes');
+                return;
+            }
+            
+            if (currentProcessNo) {
+                // Update existing process
+                fetch('/api/update_standard_time', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        process_no: currentProcessNo,
+                        standard_time: newTime,
+                        title: newTitle
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const process = standardTimes.find(p => p.process_no === currentProcessNo);
+                        if (process) {
+                            process.standard_time = newTime;
+                            process.title = newTitle;
+                        }
+                        displayProcesses();
+                        closeEditModal();
+                    } else {
+                        alert('Failed to update standard time');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error updating standard time');
+                });
+            } else {
+                // Add new process
+                fetch('/api/add_process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        standard_time: newTime,
+                        title: newTitle
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        loadStandardTimes();
+                        closeEditModal();
+                    } else {
+                        alert('Failed to add process');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error adding process');
+                });
+            }
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('editModal');
+            if (event.target == modal) {
+                closeEditModal();
+            }
+        }
+    </script>
+</body>
+</html>

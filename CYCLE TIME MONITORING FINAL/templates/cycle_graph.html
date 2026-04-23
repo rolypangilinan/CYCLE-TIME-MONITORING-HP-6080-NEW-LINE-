@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cycle Time Graph Monitoring</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <style>
+        html, body {
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .graph-container {
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: clamp(10px, 2.5vh, 30px);
+            margin: clamp(5px, 1.5vh, 20px) auto;
+            max-width: 1400px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .graph-title {
+            text-align: center;
+            font-size: clamp(16px, 3.2vh, 32px);
+            font-weight: 800;
+            color: #1a1a2e;
+            margin-bottom: clamp(5px, 1.5vh, 20px);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .btn-back {
+            min-width: 170px;
+            font-size: clamp(12px, 1.8vh, 18px);
+            font-weight: bold;
+            padding: clamp(6px, 1vh, 12px) 24px;
+            border-radius: 14px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+        }
+
+        .btn-back:active {
+            transform: translateY(3px) scale(0.98);
+        }
+
+        .btn-refresh {
+            min-width: 170px;
+            font-size: clamp(12px, 1.8vh, 18px);
+            font-weight: bold;
+            padding: clamp(6px, 1vh, 12px) 24px;
+            border-radius: 14px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-refresh:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+        }
+
+        .btn-refresh:active {
+            transform: translateY(3px) scale(0.98);
+        }
+
+        .controls-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: clamp(5px, 1.2vh, 20px);
+        }
+
+        .legend-box {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: #ffffff;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 30px;
+            height: 16px;
+            border-radius: 3px;
+        }
+
+        .legend-line {
+            width: 30px;
+            height: 3px;
+            border-radius: 2px;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 20px;
+            z-index: 10;
+            font-size: 24px;
+            font-weight: bold;
+            color: #666;
+        }
+
+        .auto-refresh-label {
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        /* Height-responsive adjustments */
+        @media (max-height: 900px) {
+            .container-fluid.p-3 {
+                padding: 1.5vh 10px !important;
+            }
+            .graph-container {
+                padding: 2vh 20px;
+                margin: 1vh 10px;
+            }
+            .graph-title {
+                font-size: clamp(16px, 2.8vh, 26px);
+                margin-bottom: 1vh;
+            }
+            .btn-back, .btn-refresh {
+                min-width: 140px;
+                font-size: clamp(12px, 1.6vh, 15px);
+                padding: 0.8vh 18px;
+            }
+            .legend-box {
+                gap: 15px;
+                font-size: clamp(11px, 1.4vh, 13px);
+                padding: 0.8vh 14px;
+            }
+            .controls-bar {
+                margin-bottom: 1vh;
+            }
+        }
+
+        @media (max-height: 700px) {
+            .container-fluid.p-3 {
+                padding: 0.8vh 8px !important;
+            }
+            .graph-container {
+                padding: 1.2vh 12px;
+                margin: 0.5vh 5px;
+                border-radius: 12px;
+            }
+            .graph-title {
+                font-size: clamp(14px, 2.2vh, 20px);
+                margin-bottom: 0.5vh;
+            }
+            .controls-bar {
+                margin-bottom: 0.6vh;
+                gap: 6px;
+            }
+            .btn-back, .btn-refresh {
+                min-width: 120px;
+                font-size: clamp(10px, 1.4vh, 14px);
+                padding: 0.5vh 12px;
+                border-radius: 10px;
+            }
+            .legend-box {
+                gap: 10px;
+                font-size: clamp(10px, 1.2vh, 12px);
+                padding: 0.5vh 10px;
+            }
+            .auto-refresh-label {
+                font-size: clamp(10px, 1.2vh, 12px);
+            }
+        }
+
+        @media (max-height: 500px) {
+            .container-fluid.p-3 {
+                padding: 0.4vh 5px !important;
+            }
+            .graph-container {
+                padding: 0.8vh 8px;
+                margin: 0.3vh 2px;
+                border-radius: 8px;
+            }
+            .graph-title {
+                font-size: clamp(12px, 1.8vh, 16px);
+                margin-bottom: 0.3vh;
+            }
+            .controls-bar {
+                margin-bottom: 0.4vh;
+            }
+            .btn-back, .btn-refresh {
+                min-width: 100px;
+                font-size: clamp(9px, 1.2vh, 12px);
+                padding: 0.3vh 8px;
+            }
+            .legend-box {
+                gap: 6px;
+                font-size: clamp(9px, 1vh, 11px);
+                padding: 0.3vh 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid p-3" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+    <div class="controls-bar">
+        <a href="/" class="btn btn-light btn-back">BACK TO HOME</a>
+        <div class="legend-box">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #5BC0EB;"></div>
+                <span>Average Elapsed Time</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-line" style="background: #FF0000;"></div>
+                <span>ST Tolerance (Standard Time)</span>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <span class="auto-refresh-label">Auto-refresh: <span id="refreshCountdown">30</span>s</span>
+            <button class="btn btn-success btn-refresh" onclick="loadGraphData()">REFRESH</button>
+        </div>
+    </div>
+
+    <div class="graph-container">
+        <h1 class="graph-title">CYCLE TIME GRAPH MONITORING</h1>
+        <div class="chart-wrapper">
+            <canvas id="cycleChart"></canvas>
+            <div class="loading-overlay" id="loadingOverlay">Loading data...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let cycleChart = null;
+    let refreshTimer = null;
+    let countdown = 30;
+
+    // Convert M.SS value to total seconds for chart scaling
+    function mssToSeconds(mss) {
+        const minutes = Math.floor(mss);
+        const secs = Math.round((mss - minutes) * 100);
+        return minutes * 60 + secs;
+    }
+
+    // Convert total seconds to M.SS format
+    function secondsToMss(totalSec) {
+        const minutes = Math.floor(totalSec / 60);
+        const secs = Math.round(totalSec % 60);
+        return minutes + (secs / 100.0);
+    }
+
+    // Format M.SS value for display
+    function formatMss(val) {
+        if (val === 0) return '0';
+        return val.toFixed(2);
+    }
+
+    function createChart(graphData) {
+        const ctx = document.getElementById('cycleChart').getContext('2d');
+
+        const labels = graphData.map(d => d.process_no.toString());
+        const avgValues = graphData.map(d => d.avg_seconds);
+        const stValues = graphData.map(d => {
+            // Convert ST from M.SS to seconds
+            const st = d.standard_time;
+            const mins = Math.floor(st);
+            const secs = Math.round((st - mins) * 100);
+            return mins * 60 + secs;
+        });
+        const stLabels = graphData.map(d => d.standard_time.toFixed(2));
+        const operatorLabels = graphData.map(d => d.operator || '-');
+
+        // Calculate Y-axis max - find the highest value and add padding
+        const allValues = [...avgValues, ...stValues];
+        const maxVal = Math.max(...allValues.filter(v => v > 0), 60);
+        const yMax = Math.ceil(maxVal / 10) * 10 + 20;
+
+        // Generate Y-axis tick values in M.SS format
+        const yTickStepSec = 15; // every 15 seconds
+
+        if (cycleChart) {
+            cycleChart.destroy();
+        }
+
+        cycleChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Average Elapsed Time',
+                        data: avgValues,
+                        backgroundColor: '#5BC0EB',
+                        borderColor: '#3DA8D3',
+                        borderWidth: 1,
+                        borderRadius: 0,
+                        barPercentage: 0.85,
+                        categoryPercentage: 0.9,
+                        order: 2
+                    },
+                    {
+                        label: 'ST Tolerance',
+                        data: stValues,
+                        type: 'line',
+                        borderColor: '#FF0000',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#FF0000',
+                        pointBorderColor: '#FF0000',
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        fill: false,
+                        tension: 0,
+                        stepped: 'middle',
+                        order: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        bottom: 80,
+                        left: 10,
+                        right: 90,
+                        top: 20
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: true,
+                            color: '#e0e0e0'
+                        },
+                        ticks: {
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            },
+                            color: '#333',
+                            callback: function(value, index) {
+                                return labels[index];
+                            }
+                        },
+                        title: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: yMax,
+                        grid: {
+                            display: true,
+                            color: '#e0e0e0'
+                        },
+                        ticks: {
+                            stepSize: yTickStepSec,
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            color: '#333',
+                            callback: function(value) {
+                                return formatMss(secondsToMss(value));
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'TIME (M.SS)',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            color: '#333'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const sec = context.raw;
+                                const mss = secondsToMss(sec);
+                                if (context.dataset.label === 'ST Tolerance') {
+                                    return `ST: ${formatMss(mss)} min (${sec} sec)`;
+                                }
+                                return `Avg: ${formatMss(mss)} min (${Math.round(sec)} sec)`;
+                            }
+                        },
+                        titleFont: { size: 16 },
+                        bodyFont: { size: 14 },
+                        padding: 12
+                    },
+                    datalabels: {
+                        display: function(context) {
+                            return context.datasetIndex === 0;
+                        },
+                        anchor: 'end',
+                        align: 'top',
+                        color: '#333',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        formatter: function(value) {
+                            if (value === 0) return '';
+                            return formatMss(secondsToMss(value));
+                        }
+                    }
+                }
+            },
+            plugins: [ChartDataLabels, {
+                id: 'customBottomLabels',
+                afterDraw: function(chart) {
+                    const ctx = chart.ctx;
+                    const xAxis = chart.scales.x;
+                    const chartArea = chart.chartArea;
+
+                    ctx.save();
+
+                    // Draw ST row
+                    ctx.font = 'bold 13px Segoe UI';
+                    ctx.fillStyle = '#FF0000';
+                    ctx.textAlign = 'center';
+
+                    graphData.forEach((d, i) => {
+                        const x = xAxis.getPixelForValue(i);
+                        // ST value below process number
+                        ctx.fillText(d.standard_time.toFixed(2), x, chartArea.bottom + 52);
+                    });
+
+                    // Draw ST label on the right
+                    ctx.fillStyle = '#FF0000';
+                    ctx.font = 'bold 14px Segoe UI';
+                    ctx.textAlign = 'left';
+                    ctx.fillText('ST', chartArea.right + 10, chartArea.bottom + 52);
+
+                    // Draw Operator row
+                    ctx.font = 'bold 11px Segoe UI';
+                    ctx.fillStyle = '#333';
+                    ctx.textAlign = 'center';
+
+                    graphData.forEach((d, i) => {
+                        const x = xAxis.getPixelForValue(i);
+                        const name = d.operator || '-';
+                        // Split long names into two lines
+                        const words = name.split(' ');
+                        if (words.length > 1 && name.length > 10) {
+                            const mid = Math.ceil(words.length / 2);
+                            const line1 = words.slice(0, mid).join(' ');
+                            const line2 = words.slice(mid).join(' ');
+                            ctx.fillText(line1, x, chartArea.bottom + 68);
+                            ctx.fillText(line2, x, chartArea.bottom + 80);
+                        } else {
+                            ctx.fillText(name, x, chartArea.bottom + 72);
+                        }
+                    });
+
+                    // Draw PROCESS label on the right (aligned with process numbers)
+                    ctx.fillStyle = '#333';
+                    ctx.font = 'bold 14px Segoe UI';
+                    ctx.textAlign = 'left';
+                    ctx.fillText('PROCESS', chartArea.right + 10, chartArea.bottom + 32);
+
+                    // Draw OPERATOR label on the right
+                    ctx.fillStyle = '#333';
+                    ctx.font = 'bold 14px Segoe UI';
+                    ctx.textAlign = 'left';
+                    ctx.fillText('OP', chartArea.right + 10, chartArea.bottom + 72);
+
+                    ctx.restore();
+                }
+            }]
+        });
+    }
+
+    function loadGraphData() {
+        document.getElementById('loadingOverlay').style.display = 'flex';
+
+        fetch('/api/get_cycle_graph_data')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loadingOverlay').style.display = 'none';
+                if (data.success) {
+                    createChart(data.graph_data);
+                } else {
+                    console.error('Failed to load graph data:', data.error);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loadingOverlay').style.display = 'none';
+                console.error('Error loading graph data:', error);
+            });
+    }
+
+    // Auto-refresh countdown (fallback every 30s)
+    function startAutoRefresh() {
+        countdown = 30;
+        if (refreshTimer) clearInterval(refreshTimer);
+
+        refreshTimer = setInterval(() => {
+            countdown--;
+            document.getElementById('refreshCountdown').textContent = countdown;
+            if (countdown <= 0) {
+                countdown = 30;
+                loadGraphData();
+            }
+        }, 1000);
+    }
+
+    // Smart polling: check for data changes every 3 seconds
+    let lastKnownUpdateTimestamp = 0;
+    let dataChangePoller = null;
+
+    function startDataChangePolling() {
+        if (dataChangePoller) clearInterval(dataChangePoller);
+        dataChangePoller = setInterval(() => {
+            fetch('/api/get_last_update')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.timestamp > lastKnownUpdateTimestamp) {
+                        lastKnownUpdateTimestamp = data.timestamp;
+                        console.log('[AUTO-REFRESH] Data change detected, refreshing chart...');
+                        loadGraphData();
+                        countdown = 30;
+                        document.getElementById('refreshCountdown').textContent = countdown;
+                    }
+                })
+                .catch(err => {});
+        }, 3000);
+    }
+
+    // Load data on page load
+    window.addEventListener('load', () => {
+        loadGraphData();
+        startAutoRefresh();
+        fetch('/api/get_last_update')
+            .then(r => r.json())
+            .then(d => { if (d.success) lastKnownUpdateTimestamp = d.timestamp; })
+            .catch(() => {})
+            .finally(() => startDataChangePolling());
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manpower Configuration - Cycle Time Monitoring</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        body {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background: #1a1a2e;
+            padding: clamp(8px, 1.5vh, 20px);
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: clamp(8px, 2vh, 30px);
+        }
+        
+        .header h1 {
+            color: white;
+            font-size: clamp(18px, 3.6vh, 36px);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+        
+        .manpower-list {
+            background: #2d2d44;
+            border-radius: 10px;
+            padding: clamp(10px, 2.5vh, 30px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+        
+        .table-header {
+            display: grid;
+            grid-template-columns: 120px 100px 1fr 120px 1fr 1fr 80px;
+            gap: 12px;
+            padding: clamp(6px, 1.2vh, 15px) 20px;
+            font-weight: bold;
+            font-size: clamp(10px, 1.4vh, 14px);
+            color: #ccc;
+            border-bottom: 2px solid #444;
+            margin-bottom: clamp(4px, 0.8vh, 10px);
+        }
+        
+        .manpower-item {
+            display: grid;
+            grid-template-columns: 120px 100px 1fr 120px 1fr 1fr 80px;
+            gap: 12px;
+            align-items: center;
+            padding: clamp(4px, 1vh, 12px) 20px;
+            margin-bottom: clamp(2px, 0.4vh, 5px);
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+        
+        .manpower-item:hover {
+            background: #3d3d5c;
+        }
+        
+        .process-label {
+            font-size: clamp(12px, 1.8vh, 18px);
+            font-weight: bold;
+        }
+        
+        .operator-value {
+            font-size: clamp(11px, 1.6vh, 16px);
+            color: #aaa;
+        }
+        
+        .edit-btn {
+            background: transparent;
+            color: #ff6b6b;
+            border: none;
+            padding: clamp(4px, 0.8vh, 8px) 15px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: clamp(12px, 1.6vh, 16px);
+            font-family: 'Consolas', 'Courier New', monospace;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .edit-btn:hover {
+            color: #ff4757;
+            text-decoration: underline;
+        }
+        
+        .back-btn {
+            display: inline-block;
+            background: #6c757d;
+            color: white;
+            padding: clamp(6px, 1vh, 12px) 30px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: clamp(8px, 1.5vh, 20px);
+            transition: all 0.3s ease;
+        }
+        
+        .back-btn:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 450px;
+            text-align: center;
+            color: #333;
+        }
+        
+        .modal h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .modal label {
+            display: block;
+            text-align: left;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        
+        .modal input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        
+        .modal-btn {
+            padding: 10px 30px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .save-btn {
+            background: #28a745;
+            color: white;
+        }
+        
+        .save-btn:hover {
+            background: #218838;
+        }
+        
+        .cancel-btn {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .cancel-btn:hover {
+            background: #c82333;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #aaa;
+            padding: 50px;
+        }
+
+        /* Height-responsive adjustments */
+        @media (max-height: 800px) {
+            .header {
+                margin-bottom: 1.5vh;
+            }
+            .header h1 {
+                font-size: clamp(16px, 3vh, 30px);
+            }
+            .manpower-list {
+                padding: 1.5vh 20px;
+            }
+            .table-header {
+                padding: 1vh 15px;
+                font-size: clamp(9px, 1.2vh, 12px);
+            }
+            .table-header,
+            .manpower-item {
+                grid-template-columns: 100px 80px 1fr 100px 1fr 1fr 60px;
+                gap: 8px;
+            }
+            .manpower-item {
+                padding: 0.8vh 15px;
+                margin-bottom: 0.3vh;
+            }
+            .process-label {
+                font-size: clamp(11px, 1.5vh, 14px);
+            }
+            .operator-value {
+                font-size: clamp(10px, 1.3vh, 12px);
+            }
+            .back-btn {
+                margin-top: 1vh;
+                padding: 0.8vh 25px;
+            }
+        }
+
+        @media (max-height: 600px) {
+            body {
+                padding: 0.8vh 10px;
+            }
+            .header {
+                margin-bottom: 0.8vh;
+            }
+            .header h1 {
+                font-size: clamp(14px, 2.5vh, 24px);
+            }
+            .manpower-list {
+                padding: 1vh 10px;
+                border-radius: 8px;
+            }
+            .table-header {
+                padding: 0.6vh 10px;
+                font-size: clamp(8px, 1.1vh, 11px);
+                margin-bottom: 0.3vh;
+            }
+            .table-header,
+            .manpower-item {
+                grid-template-columns: 90px 70px 1fr 90px 1fr 1fr 50px;
+                gap: 6px;
+            }
+            .manpower-item {
+                padding: 0.5vh 10px;
+                margin-bottom: 0.2vh;
+            }
+            .process-label {
+                font-size: clamp(10px, 1.3vh, 13px);
+            }
+            .operator-value {
+                font-size: clamp(9px, 1.1vh, 11px);
+            }
+            .edit-btn {
+                font-size: clamp(10px, 1.2vh, 12px);
+                padding: 0.4vh 8px;
+            }
+            .back-btn {
+                margin-top: 0.8vh;
+                padding: 0.6vh 20px;
+                font-size: clamp(11px, 1.3vh, 14px);
+            }
+            .modal-content {
+                width: 90%;
+                padding: 2vh 15px;
+                margin: 10% auto;
+            }
+        }
+
+        @media (max-height: 450px) {
+            body {
+                padding: 0.5vh 8px;
+            }
+            .header {
+                margin-bottom: 0.4vh;
+            }
+            .header h1 {
+                font-size: clamp(12px, 2vh, 20px);
+            }
+            .manpower-list {
+                padding: 0.6vh 8px;
+            }
+            .table-header {
+                padding: 0.3vh 8px;
+                font-size: clamp(7px, 0.9vh, 10px);
+            }
+            .manpower-item {
+                padding: 0.3vh 8px;
+            }
+            .process-label {
+                font-size: clamp(9px, 1.1vh, 12px);
+            }
+            .operator-value {
+                font-size: clamp(8px, 1vh, 10px);
+            }
+            .edit-btn {
+                font-size: clamp(9px, 1vh, 11px);
+                padding: 0.2vh 6px;
+            }
+            .back-btn {
+                margin-top: 0.5vh;
+                padding: 0.4vh 15px;
+                font-size: clamp(10px, 1.1vh, 12px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MANPOWER CONFIGURATION</h1>
+    </div>
+    
+    <div class="container">
+        <div class="manpower-list">
+            <div class="table-header">
+                <span>PER PROCESS</span>
+                <span>ID NO</span>
+                <span>OPERATOR NAME</span>
+                <span>EMP. STATUS</span>
+                <span>OPERATOR (MANUAL)</span>
+                <span>OPERATOR (SCAN)</span>
+                <span></span>
+            </div>
+            <div id="manpowerList">
+                <div class="loading">Loading manpower data...</div>
+            </div>
+        </div>
+        
+        <div style="text-align: center;">
+            <a href="/settings" class="back-btn">Back to Settings</a>
+        </div>
+    </div>
+    
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h3 id="modalTitle">Edit Manpower</h3>
+            <label for="operatorManualInput">Operator (Manual)</label>
+            <input type="text" id="operatorManualInput" placeholder="Enter operator name (manual)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <label for="operatorScanInput">Operator (Scan)</label>
+            <input type="text" id="operatorScanInput" placeholder="Scan operator ID" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <div class="modal-buttons">
+                <button class="modal-btn save-btn" onclick="saveManpower()">Save</button>
+                <button class="modal-btn cancel-btn" onclick="closeEditModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentProcessNo = null;
+        let manpowerData = [];
+        
+        // Load manpower data on page load
+        window.onload = function() {
+            loadManpower();
+        };
+        
+        function loadManpower() {
+            fetch('/api/get_manpower')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        manpowerData = data.manpower;
+                        displayManpower();
+                    } else {
+                        alert('Failed to load manpower data');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error loading manpower data');
+                });
+        }
+        
+        function displayManpower() {
+            const manpowerList = document.getElementById('manpowerList');
+            manpowerList.innerHTML = '';
+            
+            manpowerData.forEach(item => {
+                const manpowerItem = document.createElement('div');
+                manpowerItem.className = 'manpower-item';
+                
+                manpowerItem.innerHTML = `
+                    <span class="process-label">PROCESS ${item.process_no}</span>
+                    <span class="operator-value">${item.id_no || ''}</span>
+                    <span class="operator-value">${item.operator_name || ''}</span>
+                    <span class="operator-value">${item.employment_status || ''}</span>
+                    <span class="operator-value">${item.operator_manual || ''}</span>
+                    <span class="operator-value">${item.operator_scan || ''}</span>
+                    <button class="edit-btn" onclick="showEditModal(${item.process_no}, '${(item.operator_manual || '').replace(/'/g, "\\'")}', '${(item.operator_scan || '').replace(/'/g, "\\'")}')">EDIT</button>
+                `;
+                manpowerList.appendChild(manpowerItem);
+            });
+        }
+        
+        function showEditModal(processNo, operatorManual, operatorScan) {
+            currentProcessNo = processNo;
+            document.getElementById('modalTitle').textContent = `Edit Process ${processNo} Manpower`;
+            document.getElementById('operatorManualInput').value = operatorManual || '';
+            document.getElementById('operatorScanInput').value = operatorScan || '';
+            document.getElementById('editModal').style.display = 'block';
+            
+            // Focus on scan input so scanner can immediately input
+            const scanInput = document.getElementById('operatorScanInput');
+            scanInput.focus();
+        }
+        
+        // When scanner inputs into Operator (Scan), clear Operator (Manual)
+        document.getElementById('operatorScanInput').addEventListener('input', function() {
+            if (this.value.trim() !== '') {
+                document.getElementById('operatorManualInput').value = '';
+            }
+        });
+        
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+            currentProcessNo = null;
+        }
+        
+        function saveManpower() {
+            const operatorManual = document.getElementById('operatorManualInput').value.trim();
+            const operatorScan = document.getElementById('operatorScanInput').value.trim();
+            
+            fetch('/api/update_manpower', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    process_no: currentProcessNo,
+                    operator_manual: operatorManual,
+                    operator_scan: operatorScan
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const item = manpowerData.find(m => m.process_no === currentProcessNo);
+                    if (item) {
+                        item.operator_manual = operatorManual;
+                        item.operator_scan = operatorScan;
+                        // Parse operator_scan to update id_no, operator_name, employment_status locally
+                        if (operatorScan) {
+                            const parts = operatorScan.split(' , ');
+                            item.id_no = parts[0] ? parts[0].trim() : '';
+                            item.operator_name = parts[1] ? parts[1].trim() : '';
+                            item.employment_status = parts[2] ? parts[2].trim() : '';
+                        } else {
+                            item.id_no = '';
+                            item.operator_name = '';
+                            item.employment_status = '';
+                        }
+                    }
+                    displayManpower();
+                    closeEditModal();
+                } else {
+                    alert('Failed to update manpower');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error updating manpower');
+            });
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('editModal');
+            if (event.target == modal) {
+                closeEditModal();
+            }
+        }
+    </script>
+</body>
+</html>
