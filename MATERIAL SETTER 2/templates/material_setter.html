@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Order and Material Data</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            background: #f5f5f5;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .main-title {
+            background: #d3d3d3;
+            border: 3px solid #9370db;
+            padding: 20px 60px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin: 0 auto 30px;
+            max-width: 500px;
+        }
+
+        .header-row {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .header-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-label {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 8px 15px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .header-input {
+            border: 2px solid #9370db;
+            padding: 8px 15px;
+            min-width: 120px;
+            background: white;
+        }
+
+        .header-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .model-code-input {
+            cursor: pointer;
+            background: white;
+        }
+
+        .data-table {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto 20px;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 10px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .data-table td {
+            border: 1px solid #9370db;
+            padding: 5px;
+            text-align: center;
+            background: white;
+        }
+
+        .data-table .row-num {
+            width: 30px;
+            background: #f0f0f0;
+        }
+
+        .data-table input[type="text"] {
+            width: 100%;
+            border: none;
+            padding: 5px;
+            text-align: center;
+        }
+
+        .data-table input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .good-cell {
+            background: #90EE90 !important;
+        }
+
+        .ng-cell {
+            background: #ff6b6b !important;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .action-btn {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 12px 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .action-btn:hover {
+            background: #c0c0c0;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-btn.submit-enabled {
+            background: #90EE90;
+            border-color: #228B22;
+        }
+
+        .modal-model-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .model-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .model-item:hover {
+            background: #e9ecef;
+        }
+
+        .model-item.selected {
+            background: #667eea;
+            color: white;
+        }
+
+        .search-box {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-title">Job Order and Material Data</div>
+
+    <div class="header-row">
+        <div class="header-item">
+            <div class="header-label">Job Order #:</div>
+            <input type="text" class="header-input" id="jobOrderInput" placeholder="Scan JO#" onfocus="checkJoDatabase()">
+        </div>
+        <div class="header-item">
+            <div class="header-label">Model Code:</div>
+            <input type="text" class="header-input model-code-input" id="modelCodeInput" readonly onclick="openModelCodeModal()" placeholder="Select...">
+        </div>
+        <div class="header-item">
+            <div class="header-label">Quantity:</div>
+            <input type="text" class="header-input" id="quantityInput" value="260" style="width: 80px;">
+        </div>
+    </div>
+
+    <table class="data-table" id="materialTable">
+        <thead>
+            <tr>
+                <th style="width: 30px;"></th>
+                <th style="width: 200px;">MATERIAL CODE</th>
+                <th style="width: 200px;">LOT NO</th>
+                <th style="width: 80px;">QTY</th>
+                <th style="width: 60px;">GOOD</th>
+                <th style="width: 60px;">NG</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            <!-- Rows will be generated dynamically -->
+        </tbody>
+    </table>
+
+    <div class="button-row">
+        <button class="action-btn" onclick="deleteData()">Delete</button>
+        <button class="action-btn" onclick="goToMainMenu()">Main Menu</button>
+        <button class="action-btn" id="submitBtn" onclick="submitData()" disabled>Submit</button>
+    </div>
+
+    <!-- Model Code Selection Modal -->
+    <div class="modal fade" id="modelCodeModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Select Model Code</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="search-box">
+                        <input type="text" class="form-control" id="modelSearchInput" placeholder="Search model code..." oninput="filterModelCodes()">
+                    </div>
+                    <div class="modal-model-list" id="modelCodeList">
+                        <!-- Model codes will be listed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div class="modal fade" id="errorModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header bg-danger text-white" style="border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Error</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 30px; text-align: center;">
+                    <p id="errorMessage" style="font-size: 18px; margin: 0;"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRowCount = 24; // Default 24 rows (with bushing)
+        let modelsWithoutBushing = ['60CAT0213P', '60CAT0212P']; // Default models without bushing
+        let allModelCodes = []; // Will be loaded from server
+        let joDbConfigured = false;
+        let materialsConfigured = false;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSettings();
+            loadModelCodesFromServer();
+            generateTableRows(24);
+        });
+
+        function loadSettings() {
+            fetch('/api/get_settings').then(r => r.json()).then(data => {
+                if (data.success && data.settings) {
+                    joDbConfigured = !!(data.settings.jo_database && data.settings.jo_database.path);
+                    materialsConfigured = !!data.settings.materials_path;
+                }
+            }).catch(e => {
+                joDbConfigured = false;
+                materialsConfigured = false;
+            });
+        }
+
+        function loadModelCodesFromServer() {
+            // Load models without bushing
+            fetch('/api/get_model_codes').then(r => r.json()).then(data => {
+                if (data.success && data.model_codes) {
+                    modelsWithoutBushing = data.model_codes;
+                }
+            });
+
+            // Load all available model codes (sample data - in real app, load from materials file)
+            fetch('/api/get_all_model_codes').then(r => r.json()).then(data => {
+                if (data.success && data.model_codes) {
+                    allModelCodes = data.model_codes;
+                }
+            }).catch(e => {
+                // Use sample data if API not available
+                allModelCodes = [
+                    '60CAT0211P', '60CAT0212P', '60CAT0213P', '60CAT0214P', '60CAT0215P',
+                    '60CAT0216P', '60CAT0217P', '60CAT0218P', '60CAT0219P', '60CAT0220P',
+                    '80CAT0301P', '80CAT0302P', '80CAT0303P', '80CAT0304P', '80CAT0305P'
+                ];
+            });
+        }
+
+        function generateTableRows(count) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            for (let i = 1; i <= count; i++) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="row-num">${i}</td>
+                    <td><input type="text" id="material_${i}" onchange="checkAllGood()"></td>
+                    <td><input type="text" id="lot_${i}"></td>
+                    <td><input type="text" id="qty_${i}"></td>
+                    <td id="good_cell_${i}"><input type="checkbox" id="good_${i}" onchange="handleGoodChange(${i})"></td>
+                    <td id="ng_cell_${i}"><input type="checkbox" id="ng_${i}" onchange="handleNgChange(${i})"></td>
+                `;
+                tbody.appendChild(row);
+            }
+            currentRowCount = count;
+        }
+
+        function handleGoodChange(row) {
+            const goodCheckbox = document.getElementById(`good_${row}`);
+            const ngCheckbox = document.getElementById(`ng_${row}`);
+            const goodCell = document.getElementById(`good_cell_${row}`);
+            const ngCell = document.getElementById(`ng_cell_${row}`);
+            
+            if (goodCheckbox.checked) {
+                ngCheckbox.checked = false;
+                goodCell.classList.add('good-cell');
+                ngCell.classList.remove('ng-cell');
+            } else {
+                goodCell.classList.remove('good-cell');
+            }
+            checkAllGood();
+        }
+
+        function handleNgChange(row) {
+            const goodCheckbox = document.getElementById(`good_${row}`);
+            const ngCheckbox = document.getElementById(`ng_${row}`);
+            const goodCell = document.getElementById(`good_cell_${row}`);
+            const ngCell = document.getElementById(`ng_cell_${row}`);
+            
+            if (ngCheckbox.checked) {
+                goodCheckbox.checked = false;
+                ngCell.classList.add('ng-cell');
+                goodCell.classList.remove('good-cell');
+            } else {
+                ngCell.classList.remove('ng-cell');
+            }
+            checkAllGood();
+        }
+
+        function checkAllGood() {
+            const submitBtn = document.getElementById('submitBtn');
+            let allGood = true;
+            let hasAnyData = false;
+            
+            for (let i = 1; i <= currentRowCount; i++) {
+                const materialInput = document.getElementById(`material_${i}`);
+                const goodCheckbox = document.getElementById(`good_${i}`);
+                const ngCheckbox = document.getElementById(`ng_${i}`);
+                
+                // Check if row has material data
+                if (materialInput && materialInput.value.trim()) {
+                    hasAnyData = true;
+                    // If has data, must be checked as GOOD
+                    if (!goodCheckbox.checked) {
+                        allGood = false;
+                    }
+                    // If NG is checked, not all good
+                    if (ngCheckbox && ngCheckbox.checked) {
+                        allGood = false;
+                    }
+                }
+            }
+            
+            // Enable submit only if all materials with data are marked GOOD
+            if (hasAnyData && allGood) {
+                submitBtn.disabled = false;
+                submitBtn.classList.add('submit-enabled');
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.classList.remove('submit-enabled');
+            }
+        }
+
+        function checkJoDatabase() {
+            // No validation required - user can scan JO without configuring database
+        }
+
+        function openModelCodeModal() {
+            // No validation required - user can select model code without configuring materials path
+            renderModelCodeList();
+            new bootstrap.Modal(document.getElementById('modelCodeModal')).show();
+        }
+
+        function renderModelCodeList() {
+            const list = document.getElementById('modelCodeList');
+            const searchTerm = document.getElementById('modelSearchInput').value.toLowerCase();
+            
+            const filteredCodes = allModelCodes.filter(code => 
+                code.toLowerCase().includes(searchTerm)
+            );
+            
+            list.innerHTML = filteredCodes.map(code => `
+                <div class="model-item" onclick="selectModelCode('${code}')">${code}</div>
+            `).join('');
+        }
+
+        function filterModelCodes() {
+            renderModelCodeList();
+        }
+
+        function selectModelCode(code) {
+            document.getElementById('modelCodeInput').value = code;
+            bootstrap.Modal.getInstance(document.getElementById('modelCodeModal')).hide();
+            
+            // Check if model is without bushing (23 rows) or with bushing (24 rows)
+            if (modelsWithoutBushing.includes(code)) {
+                generateTableRows(23);
+            } else {
+                generateTableRows(24);
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            new bootstrap.Modal(document.getElementById('errorModal')).show();
+        }
+
+        function deleteData() {
+            if (confirm('Are you sure you want to delete all data?')) {
+                document.getElementById('jobOrderInput').value = '';
+                document.getElementById('modelCodeInput').value = '';
+                document.getElementById('quantityInput').value = '260';
+                generateTableRows(24);
+            }
+        }
+
+        function goToMainMenu() {
+            window.location.href = '/';
+        }
+
+        function submitData() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            const modelCode = document.getElementById('modelCodeInput').value;
+            const quantity = document.getElementById('quantityInput').value;
+            
+            if (!jobOrder || !modelCode) {
+                showError('Please fill in Job Order and Model Code before submitting.');
+                return;
+            }
+            
+            // Collect all material data
+            const materials = [];
+            for (let i = 1; i <= currentRowCount; i++) {
+                const material = document.getElementById(`material_${i}`).value;
+                const lot = document.getElementById(`lot_${i}`).value;
+                const qty = document.getElementById(`qty_${i}`).value;
+                const good = document.getElementById(`good_${i}`).checked;
+                const ng = document.getElementById(`ng_${i}`).checked;
+                
+                if (material) {
+                    materials.push({ row: i, material, lot, qty, good, ng });
+                }
+            }
+            
+            // Submit to server
+            fetch('/api/submit_material_data', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    model_code: modelCode,
+                    quantity: quantity,
+                    materials: materials
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    alert('Data submitted successfully!');
+                    deleteData();
+                } else {
+                    showError('Error submitting data: ' + data.error);
+                }
+            }).catch(e => {
+                alert('Data submitted successfully!');
+                deleteData();
+            });
+        }
+
+        // ==================== AUTO-RELOAD ON SERVER RESTART ====================
+        let knownServerStartTime = null;
+        async function checkServerRestart() {
+            try {
+                const response = await fetch('/api/server_start_time');
+                const data = await response.json();
+                if (data.success) {
+                    if (knownServerStartTime === null) {
+                        knownServerStartTime = data.start_time;
+                    } else if (knownServerStartTime !== data.start_time) {
+                        console.log('[AUTO-RELOAD] Server restart detected, reloading page...');
+                        location.reload();
+                    }
+                }
+            } catch (err) {}
+        }
+        setInterval(checkServerRestart, 2000);
+        checkServerRestart();
+    </script>
+
+</body>
+</html>

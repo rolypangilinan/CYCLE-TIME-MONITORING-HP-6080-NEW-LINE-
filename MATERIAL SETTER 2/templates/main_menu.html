@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main Menu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        html, body {
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-bar {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #1e3c72 100%);
+            padding: 15px 0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .settings-btn {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .settings-btn:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateY(-50%) rotate(90deg);
+        }
+
+        .settings-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        .header-title {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white;
+            padding: 12px 60px;
+            font-size: clamp(18px, 2.5vh, 26px);
+            font-weight: 700;
+            text-align: center;
+            border-radius: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            display: inline-block;
+            letter-spacing: 2px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 6vh;
+            background: linear-gradient(180deg, #f0f4f8 0%, #e2e8f0 100%);
+        }
+
+        .menu-section {
+            text-align: center;
+            margin-bottom: 4vh;
+        }
+
+        .menu-label {
+            font-size: clamp(24px, 3.5vh, 36px);
+            font-weight: 800;
+            color: #1e3a5f;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .menu-subtitle {
+            font-size: clamp(12px, 1.5vh, 16px);
+            color: #64748b;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+
+        .menu-divider {
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(90deg, #2563eb, #7c3aed);
+            border-radius: 2px;
+            margin: 15px auto 0;
+        }
+
+        .menu-container {
+            display: flex;
+            gap: clamp(20px, 4vw, 50px);
+            justify-content: center;
+            align-items: stretch;
+            flex-wrap: wrap;
+            padding: 0 30px;
+        }
+
+        .menu-card {
+            min-width: 240px;
+            max-width: 280px;
+            background: white;
+            border-radius: 20px;
+            padding: 30px 25px;
+            text-decoration: none;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08), 0 2px 10px rgba(0,0,0,0.04);
+            border: 1px solid rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .menu-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            border-radius: 20px 20px 0 0;
+        }
+
+        .menu-card.card-blue::before {
+            background: linear-gradient(90deg, #2563eb, #3b82f6);
+        }
+
+        .menu-card.card-purple::before {
+            background: linear-gradient(90deg, #7c3aed, #a855f7);
+        }
+
+        .menu-card.card-teal::before {
+            background: linear-gradient(90deg, #0d9488, #14b8a6);
+        }
+
+        .menu-card:hover {
+            transform: translateY(-12px);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.15), 0 10px 25px rgba(0,0,0,0.1);
+            text-decoration: none;
+        }
+
+        .menu-card:active {
+            transform: translateY(-6px);
+            transition: all 0.15s ease;
+        }
+
+        .card-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        .menu-card:hover .card-icon {
+            transform: scale(1.1);
+        }
+
+        .card-blue .card-icon {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.35);
+        }
+
+        .card-purple .card-icon {
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.35);
+        }
+
+        .card-teal .card-icon {
+            background: linear-gradient(135deg, #0d9488, #14b8a6);
+            box-shadow: 0 8px 25px rgba(13, 148, 136, 0.35);
+        }
+
+        .card-icon svg {
+            width: 36px;
+            height: 36px;
+            fill: white;
+        }
+
+        .card-title {
+            font-size: clamp(14px, 1.8vh, 17px);
+            font-weight: 700;
+            color: #1e293b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            line-height: 1.3;
+        }
+
+        .card-desc {
+            font-size: clamp(11px, 1.3vh, 13px);
+            color: #64748b;
+            font-weight: 500;
+            line-height: 1.5;
+        }
+
+        .card-arrow {
+            margin-top: 18px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .menu-card:hover .card-arrow {
+            background: #e2e8f0;
+            transform: translateX(5px);
+        }
+
+        .card-arrow svg {
+            width: 18px;
+            height: 18px;
+            fill: #64748b;
+        }
+
+        .menu-card:hover .card-arrow svg {
+            fill: #1e293b;
+        }
+
+        /* Height-responsive adjustments */
+        @media (max-height: 700px) {
+            .content-area {
+                padding-top: 4vh;
+            }
+            .menu-section {
+                margin-bottom: 3vh;
+            }
+            .menu-card {
+                padding: 20px 20px;
+            }
+            .card-icon {
+                width: 55px;
+                height: 55px;
+                margin-bottom: 15px;
+            }
+            .card-icon svg {
+                width: 28px;
+                height: 28px;
+            }
+        }
+
+        @media (max-height: 500px) {
+            .header-bar {
+                padding: 10px 0;
+            }
+            .header-title {
+                padding: 8px 40px;
+                font-size: clamp(14px, 2vh, 20px);
+            }
+            .content-area {
+                padding-top: 2vh;
+            }
+            .menu-section {
+                margin-bottom: 2vh;
+            }
+            .menu-label {
+                font-size: clamp(16px, 2.5vh, 24px);
+            }
+            .menu-card {
+                min-width: 180px;
+                padding: 15px 15px;
+            }
+            .card-icon {
+                width: 45px;
+                height: 45px;
+                margin-bottom: 10px;
+            }
+            .card-arrow {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .menu-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            .menu-card {
+                min-width: 280px;
+                max-width: 320px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-bar text-center">
+        <span class="header-title">Main Menu</span>
+        <div class="settings-btn" onclick="openSettingsModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        </div>
+    </div>
+
+    <div class="content-area">
+        <div class="menu-section">
+            <div class="menu-label">Select Module</div>
+            <div class="menu-subtitle">Choose a module to get started</div>
+            <div class="menu-divider"></div>
+        </div>
+
+        <div class="menu-container">
+            <!-- Cycle Time Monitoring Card -->
+            <a href="/cycle_time_home" class="menu-card card-blue">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/></svg>
+                </div>
+                <div class="card-title">Cycle Time Monitoring</div>
+                <div class="card-desc">Track and analyze production cycle times in real-time</div>
+                <div class="card-arrow">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                </div>
+            </a>
+
+            <!-- Manpower Details Card -->
+            <a href="/manpower" class="menu-card card-purple">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                </div>
+                <div class="card-title">Manpower Details</div>
+                <div class="card-desc">Manage operator assignments and workforce information</div>
+                <div class="card-arrow">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                </div>
+            </a>
+
+            <!-- Material Setter Card -->
+            <a href="/material_setter" class="menu-card card-teal">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-4H6v-2h4V7h2v4h4v2h-4v4z"/></svg>
+                </div>
+                <div class="card-title">Material Setter</div>
+                <div class="card-desc">Configure materials and production settings</div>
+                <div class="card-arrow">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal fade" id="settingsModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Settings</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 30px;">
+                    <div class="d-grid gap-3">
+                        <button class="btn btn-lg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px;" onclick="openJoDatabaseModal()">JO DATABASE</button>
+                        <button class="btn btn-lg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px;" onclick="openMaterialsModal()">MATERIALS</button>
+                        <button class="btn btn-lg" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px;" onclick="openModelBushingModal()">MODEL WITH BUSHING</button>
+                        <button class="btn btn-lg" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 15px;" onclick="openLatencyModal()">LATENCY</button>
+                        <button class="btn btn-lg" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 15px;" onclick="openCycleTimeModal()">CYCLE TIME MONITORING</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JO Database Modal -->
+    <div class="modal fade" id="joDatabaseModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">JO Database Location</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 30px;">
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Select Database Type:</label>
+                        <div class="d-flex gap-3 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="joDbType" id="joDbSql" value="SQL" onchange="toggleJoPathInput()">
+                                <label class="form-check-label" for="joDbSql">SQL</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="joDbType" id="joDbServer" value="SERVER" onchange="toggleJoPathInput()">
+                                <label class="form-check-label" for="joDbServer">SERVER</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="joDbType" id="joDbTesting" value="TESTING" onchange="toggleJoPathInput()">
+                                <label class="form-check-label" for="joDbTesting">TESTING</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3" id="joPathInputDiv">
+                        <label class="form-label fw-bold">Paste JO Database Location:</label>
+                        <input type="text" class="form-control" id="joDbPath" placeholder="Paste file path here...">
+                    </div>
+                    <div class="mb-3" id="joTestingPathDiv" style="display: none;">
+                        <label class="form-label fw-bold">Testing Path (Default):</label>
+                        <input type="text" class="form-control" id="joTestingPath" value="\\192.168.2.19\production\2026\1. Document for Production Admin\8. JOB ORDER MATERIAL LIST" readonly style="background: #e9ecef;">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveJoDatabase()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Materials Modal -->
+    <div class="modal fade" id="materialsModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Materials Location</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 30px;">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Paste Materials File Location:</label>
+                        <input type="text" class="form-control" id="materialsPath" placeholder="Paste file path here...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveMaterialsPath()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model With Bushing Modal -->
+    <div class="modal fade" id="modelBushingModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Models Without Bushing (23 Rows)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 30px;">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Add Model Code (No Bushing):</label>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" id="newModelCode" placeholder="Enter model code (e.g., 60CAT0213P)">
+                            <button class="btn btn-success" onclick="addModelCode()">ADD</button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Models Without Bushing:</label>
+                        <div id="modelCodeList" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px;">
+                            <!-- Model codes will be listed here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveModelCodes()">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Latency Modal -->
+    <div class="modal fade" id="latencyModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Arduino Response Latency</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 30px;">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Select Polling Speed (Lower = Faster Response):</label>
+                        <div class="d-grid gap-2 mt-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="latencyOption" id="latency50" value="50">
+                                <label class="form-check-label" for="latency50">
+                                    <strong>50ms</strong> - Maximum Speed (Fastest Response)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="latencyOption" id="latency100" value="100" checked>
+                                <label class="form-check-label" for="latency100">
+                                    <strong>100ms</strong> - High Speed (Recommended)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="latencyOption" id="latency200" value="200">
+                                <label class="form-check-label" for="latency200">
+                                    <strong>200ms</strong> - Medium Speed
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="latencyOption" id="latency500" value="500">
+                                <label class="form-check-label" for="latency500">
+                                    <strong>500ms</strong> - Low Speed (Less CPU Usage)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-3" style="font-size: 14px;">
+                        <strong>Note:</strong> Lower values mean faster browser response when pressing Arduino buttons, but may use more CPU resources.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="saveLatency()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cycle Time Monitoring Modal -->
+    <div class="modal fade" id="cycleTimeModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Cycle Time Monitoring</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 30px;">
+                    <div class="d-grid gap-3">
+                        <button class="btn btn-lg" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; padding: 15px;" onclick="openElapsedTimeModal()">ELAPSED TIME</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Elapsed Time Settings Modal -->
+    <div class="modal fade" id="elapsedTimeModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Elapsed Time Settings</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 30px;">
+                    <label class="form-label fw-bold mb-3">ACTIVATE THE FF:</label>
+                    <div class="d-grid gap-3">
+                        <div class="form-check form-switch" style="padding-left: 3em;">
+                            <input class="form-check-input" type="checkbox" id="enableMillisecond" style="width: 3em; height: 1.5em;">
+                            <label class="form-check-label fw-bold ms-2" for="enableMillisecond" style="font-size: 1.1em;">
+                                MILLISECOND
+                            </label>
+                            <div class="text-muted small">Display timer as MM:SS.ms format</div>
+                        </div>
+                        <div class="form-check form-switch" style="padding-left: 3em;">
+                            <input class="form-check-input" type="checkbox" id="enableBlinking" style="width: 3em; height: 1.5em;">
+                            <label class="form-check-label fw-bold ms-2" for="enableBlinking" style="font-size: 1.1em;">
+                                BLINKING BACKGROUND
+                            </label>
+                            <div class="text-muted small">Flash timer background when Arduino START is pressed</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveElapsedTimeSettings()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load saved settings on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSettings();
+        });
+
+        function openSettingsModal() {
+            new bootstrap.Modal(document.getElementById('settingsModal')).show();
+        }
+
+        function openJoDatabaseModal() {
+            bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
+            loadJoDbSettings();
+            new bootstrap.Modal(document.getElementById('joDatabaseModal')).show();
+        }
+
+        function openMaterialsModal() {
+            bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
+            loadMaterialsSettings();
+            new bootstrap.Modal(document.getElementById('materialsModal')).show();
+        }
+
+        function openModelBushingModal() {
+            bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
+            loadModelCodes();
+            new bootstrap.Modal(document.getElementById('modelBushingModal')).show();
+        }
+
+        function openLatencyModal() {
+            bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
+            loadLatencySettings();
+            new bootstrap.Modal(document.getElementById('latencyModal')).show();
+        }
+
+        function openCycleTimeModal() {
+            bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
+            new bootstrap.Modal(document.getElementById('cycleTimeModal')).show();
+        }
+
+        function openElapsedTimeModal() {
+            bootstrap.Modal.getInstance(document.getElementById('cycleTimeModal')).hide();
+            loadElapsedTimeSettings();
+            new bootstrap.Modal(document.getElementById('elapsedTimeModal')).show();
+        }
+
+        function loadElapsedTimeSettings() {
+            fetch('/api/get_settings').then(r => r.json()).then(data => {
+                if (data.success && data.settings && data.settings.elapsed_time) {
+                    const et = data.settings.elapsed_time;
+                    document.getElementById('enableMillisecond').checked = et.millisecond || false;
+                    document.getElementById('enableBlinking').checked = et.blinking || false;
+                }
+            });
+        }
+
+        function saveElapsedTimeSettings() {
+            const millisecond = document.getElementById('enableMillisecond').checked;
+            const blinking = document.getElementById('enableBlinking').checked;
+            
+            fetch('/api/save_elapsed_time_settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({millisecond: millisecond, blinking: blinking})
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    alert('Elapsed Time settings saved successfully! Changes will apply on page refresh.');
+                    bootstrap.Modal.getInstance(document.getElementById('elapsedTimeModal')).hide();
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            });
+        }
+
+        function loadLatencySettings() {
+            fetch('/api/get_settings').then(r => r.json()).then(data => {
+                if (data.success && data.settings && data.settings.latency) {
+                    const latency = data.settings.latency;
+                    const radio = document.getElementById('latency' + latency);
+                    if (radio) radio.checked = true;
+                }
+            });
+        }
+
+        function saveLatency() {
+            const selected = document.querySelector('input[name="latencyOption"]:checked');
+            if (!selected) {
+                alert('Please select a latency option');
+                return;
+            }
+            
+            fetch('/api/save_latency', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({latency: parseInt(selected.value)})
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    alert('Latency setting saved successfully! The new polling speed will be applied on page refresh.');
+                    bootstrap.Modal.getInstance(document.getElementById('latencyModal')).hide();
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            });
+        }
+
+        function toggleJoPathInput() {
+            const testingRadio = document.getElementById('joDbTesting');
+            const pathInputDiv = document.getElementById('joPathInputDiv');
+            const testingPathDiv = document.getElementById('joTestingPathDiv');
+            
+            if (testingRadio.checked) {
+                pathInputDiv.style.display = 'none';
+                testingPathDiv.style.display = 'block';
+            } else {
+                pathInputDiv.style.display = 'block';
+                testingPathDiv.style.display = 'none';
+            }
+        }
+
+        function saveJoDatabase() {
+            const dbType = document.querySelector('input[name="joDbType"]:checked');
+            if (!dbType) {
+                alert('Please select a database type');
+                return;
+            }
+            
+            let path = '';
+            if (dbType.value === 'TESTING') {
+                path = document.getElementById('joTestingPath').value;
+            } else {
+                path = document.getElementById('joDbPath').value;
+                if (!path.trim()) {
+                    alert('Please paste the JO Database location');
+                    return;
+                }
+            }
+            
+            // Save to server
+            fetch('/api/save_jo_database', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({type: dbType.value, path: path})
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    alert('JO Database location saved successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('joDatabaseModal')).hide();
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            });
+        }
+
+        function saveMaterialsPath() {
+            const path = document.getElementById('materialsPath').value;
+            if (!path.trim()) {
+                alert('Please paste the Materials file location');
+                return;
+            }
+            
+            fetch('/api/save_materials_path', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path: path})
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    alert('Materials location saved successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('materialsModal')).hide();
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            });
+        }
+
+        function loadSettings() {
+            fetch('/api/get_settings').then(r => r.json()).then(data => {
+                if (data.success) {
+                    // Settings loaded
+                }
+            }).catch(e => console.log('Settings not loaded yet'));
+        }
+
+        function loadJoDbSettings() {
+            fetch('/api/get_settings').then(r => r.json()).then(data => {
+                if (data.success && data.settings) {
+                    const joDb = data.settings.jo_database;
+                    if (joDb) {
+                        if (joDb.type === 'SQL') document.getElementById('joDbSql').checked = true;
+                        else if (joDb.type === 'SERVER') document.getElementById('joDbServer').checked = true;
+                        else if (joDb.type === 'TESTING') document.getElementById('joDbTesting').checked = true;
+                        
+                        document.getElementById('joDbPath').value = joDb.path || '';
+                        toggleJoPathInput();
+                    }
+                }
+            });
+        }
+
+        function loadMaterialsSettings() {
+            fetch('/api/get_settings').then(r => r.json()).then(data => {
+                if (data.success && data.settings && data.settings.materials_path) {
+                    document.getElementById('materialsPath').value = data.settings.materials_path;
+                }
+            });
+        }
+
+        function loadModelCodes() {
+            fetch('/api/get_model_codes').then(r => r.json()).then(data => {
+                if (data.success) {
+                    renderModelCodeList(data.model_codes || []);
+                }
+            });
+        }
+
+        function renderModelCodeList(codes) {
+            const list = document.getElementById('modelCodeList');
+            if (codes.length === 0) {
+                list.innerHTML = '<p class="text-muted mb-0">No models added yet. Default: 60CAT0213P, 60CAT0212P</p>';
+                return;
+            }
+            list.innerHTML = codes.map(code => `
+                <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                    <span>${code}</span>
+                    <button class="btn btn-sm btn-danger" onclick="deleteModelCode('${code}')">DELETE</button>
+                </div>
+            `).join('');
+        }
+
+        function addModelCode() {
+            const input = document.getElementById('newModelCode');
+            const code = input.value.trim().toUpperCase();
+            if (!code) {
+                alert('Please enter a model code');
+                return;
+            }
+            
+            fetch('/api/add_model_code', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({model_code: code})
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    input.value = '';
+                    loadModelCodes();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            });
+        }
+
+        function deleteModelCode(code) {
+            if (!confirm(`Delete model code ${code}?`)) return;
+            
+            fetch('/api/delete_model_code', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({model_code: code})
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    loadModelCodes();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            });
+        }
+
+        function saveModelCodes() {
+            alert('Model codes saved successfully!');
+            bootstrap.Modal.getInstance(document.getElementById('modelBushingModal')).hide();
+        }
+
+        // ==================== AUTO-RELOAD ON SERVER RESTART ====================
+        let knownServerStartTime = null;
+        async function checkServerRestart() {
+            try {
+                const response = await fetch('/api/server_start_time');
+                const data = await response.json();
+                if (data.success) {
+                    if (knownServerStartTime === null) {
+                        knownServerStartTime = data.start_time;
+                    } else if (knownServerStartTime !== data.start_time) {
+                        console.log('[AUTO-RELOAD] Server restart detected, reloading page...');
+                        location.reload();
+                    }
+                }
+            } catch (err) {}
+        }
+        setInterval(checkServerRestart, 2000);
+        checkServerRestart();
+    </script>
+
+</body>
+</html>
