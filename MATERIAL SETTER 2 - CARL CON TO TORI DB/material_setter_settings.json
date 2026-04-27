@@ -1,0 +1,7 @@
+{
+  "latency": 100,
+  "elapsed_time": {
+    "millisecond": true,
+    "blinking": true
+  }
+}
