@@ -1,0 +1,22 @@
+{
+  "latency": 50,
+  "elapsed_time": {
+    "millisecond": true,
+    "blinking": true
+  },
+  "generate_csv": true,
+  "csv_export_options": {
+    "default_job_order": "3J73802302",
+    "include_metadata": true,
+    "replace_nulls": true,
+    "trim_strings": true,
+    "format_dates": true,
+    "encoding": "utf-8-sig"
+  },
+  "last_csv_export": {
+    "filename": "torisql_materials_3J73802302_20260429_082629.csv",
+    "timestamp": "2026-04-29T08:26:29.418082",
+    "record_count": 47,
+    "job_order": "3J73802302"
+  }
+}
