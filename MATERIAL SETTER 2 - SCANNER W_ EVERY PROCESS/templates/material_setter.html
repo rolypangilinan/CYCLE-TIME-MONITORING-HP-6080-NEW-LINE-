@@ -1,0 +1,1905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Order and Material Data</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            background: #f5f5f5;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .main-title {
+            background: #d3d3d3;
+            border: 3px solid #9370db;
+            padding: 20px 60px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin: 0 auto 30px;
+            max-width: 500px;
+        }
+
+        .header-row {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .header-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-label {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 8px 15px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .header-input {
+            border: 2px solid #9370db;
+            padding: 8px 15px;
+            min-width: 120px;
+            background: white;
+        }
+
+        .header-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .model-code-input {
+            cursor: pointer;
+            background: white;
+        }
+
+        .data-table {
+            width: auto;
+            max-width: 100%;
+            margin: 0 auto 20px;
+            border-collapse: collapse;
+            table-layout: auto;
+        }
+
+        .data-table th {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 10px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .data-table td {
+            border: 1px solid #9370db;
+            padding: 5px;
+            text-align: center;
+            background: white;
+        }
+
+        .data-table .row-num {
+            width: 30px;
+            background: #f0f0f0;
+        }
+
+        .data-table input[type="text"] {
+            width: 100%;
+            border: none;
+            padding: 5px;
+            text-align: center;
+        }
+        
+        .data-table input.mtrl-desc {
+            text-align: left;
+            width: 100%;
+        }
+        
+        .data-table input.material-code {
+            text-align: left;
+            width: 100%;
+        }
+        
+        .data-table td:nth-child(2) {
+            white-space: nowrap;
+        }
+        
+        .data-table td:nth-child(3) {
+            white-space: nowrap;
+        }
+        
+        .data-table td:nth-child(5) {
+            white-space: nowrap;
+        }
+
+        .data-table input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .good-cell {
+            background: #90EE90 !important;
+        }
+
+        .ng-cell {
+            background: #ff6b6b !important;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .action-btn {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 12px 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .action-btn:hover {
+            background: #c0c0c0;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-btn.submit-enabled {
+            background: #90EE90;
+            border-color: #228B22;
+        }
+
+        .action-btn.complete-enabled {
+            background: #FFD700;
+            border-color: #DAA520;
+            animation: pulse-complete 1s infinite;
+        }
+
+        @keyframes pulse-complete {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Main container for side-by-side layout */
+        .tables-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .main-table-section {
+            flex: 1;
+            min-width: 800px;
+        }
+
+        .kitting-summary-section {
+            width: 550px;
+            background: #f8f9fa;
+            border: 2px solid #9370db;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .kitting-summary-title {
+            background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%);
+            color: white;
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .kitting-summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .kitting-summary-table th {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 10px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .kitting-summary-table td {
+            border: 1px solid #9370db;
+            padding: 8px;
+            text-align: center;
+            background: white;
+            font-size: 13px;
+        }
+
+        .kitting-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .kitting-info-item {
+            background: #e9ecef;
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+
+        .complete-btn-container {
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        .complete-btn {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 15px 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .complete-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .complete-btn.enabled {
+            background: #FFD700;
+            border-color: #DAA520;
+        }
+
+        .qty-consumed {
+            background: #ffcccc !important;
+        }
+
+        .modal-model-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .model-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .model-item:hover {
+            background: #e9ecef;
+        }
+
+        .model-item.selected {
+            background: #667eea;
+            color: white;
+        }
+
+        .search-box {
+            margin-bottom: 15px;
+        }
+
+        .settings-icon {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 32px;
+            height: 32px;
+            background: #9370db;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .settings-icon:hover {
+            background: #7b5fc4;
+        }
+        .settings-icon svg {
+            width: 18px;
+            height: 18px;
+            fill: white;
+        }
+        .scan-box-container {
+            position: fixed;
+            top: 150px;
+            right: 20px;
+            z-index: 100;
+        }
+        .scan-box {
+            border: 3px solid #9370db;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .scan-box-label {
+            background: #9370db;
+            color: white;
+            padding: 8px 15px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .scan-box-input {
+            width: 200px;
+            padding: 10px;
+            border: 2px solid #9370db;
+            border-radius: 4px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .scan-box-input:focus {
+            outline: none;
+            border-color: #7b5fc4;
+            box-shadow: 0 0 5px rgba(147, 112, 219, 0.5);
+        }
+        .kitting-edit-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .kitting-edit-row label {
+            width: 30px;
+            font-weight: bold;
+        }
+        .kitting-edit-row input {
+            flex: 1;
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        
+        /* Edit Menu Styles */
+        .edit-menu-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .edit-btn {
+            background: #9370db;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            display: none;
+        }
+        .edit-btn:hover {
+            background: #7b5fc4;
+        }
+        .edit-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 2px solid #9370db;
+            border-radius: 5px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            display: none;
+            min-width: 150px;
+            margin-top: 5px;
+        }
+        .edit-dropdown.show {
+            display: block;
+        }
+        .edit-dropdown-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-weight: bold;
+        }
+        .edit-dropdown-item:last-child {
+            border-bottom: none;
+        }
+        .edit-dropdown-item:hover {
+            background: #f0e6ff;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Settings Icon and Edit Menu -->
+    <div class="edit-menu-container">
+        <div class="settings-icon" onclick="showEditButton()" title="Settings">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M19.14,12.94c0.04-0.31,0.06-0.63,0.06-0.94c0-0.31-0.02-0.63-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.37,4.8,11.69,4.8,12s0.02,0.63,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+            </svg>
+        </div>
+        <button class="edit-btn" id="editBtn" onclick="toggleEditDropdown()">Edit</button>
+        <div class="edit-dropdown" id="editDropdown">
+            <div class="edit-dropdown-item" onclick="openTitleEditModal()">TITLE</div>
+            <div class="edit-dropdown-item" onclick="openSubColumnEditModal()">SUB COLUMN</div>
+            <div class="edit-dropdown-item" onclick="openColumnEditModal()">COLUMN</div>
+            <div class="edit-dropdown-item" onclick="openKittingSettingsModal()">ROWS</div>
+            <div class="edit-dropdown-item" onclick="openActionButtonEditModal()">ACTION BUTTON</div>
+            <div class="edit-dropdown-item" onclick="openRefKittingModal()">REF KITTING MTLS</div>
+        </div>
+    </div>
+
+    <div class="main-title">Job Order and Material Data</div>
+
+    <div class="header-row">
+        <div class="header-item">
+            <div class="header-label">Job Order #:</div>
+            <input type="text" class="header-input" id="jobOrderInput" placeholder="Scan JO#" maxlength="10" onfocus="blockLocalDb()" oninput="limitJobOrder()" onkeydown="handleJobOrderKeydown(event)" onchange="carltrial()">
+        </div>
+        <div class="header-item">
+            <div class="header-label">Model Code:</div>
+            <input type="text" class="header-input model-code-input" id="modelCodeInput" readonly onclick="openModelCodeModal()" placeholder="Select...">
+        </div>
+        <div class="header-item">
+            <div class="header-label">Quantity:</div>
+            <input type="text" class="header-input" id="quantityInput" value="260" style="width: 80px;">
+        </div>
+    </div>
+
+    <!-- Main Tables Container -->
+    <div class="tables-container">
+        <!-- Left Side: Main Material Table (SS1) -->
+        <div class="main-table-section">
+            <table class="data-table" id="materialTable">
+                <thead>
+                    <tr>
+                        <th style="width: 30px;"></th>
+                        <th style="width: 80px;">KITTING MTLS</th>
+                        <th style="min-width: 450px;">MTRL DESC</th>
+                        <th style="width: 200px;">MATERIAL CODE</th>
+                        <th style="width: 60px;">QTY</th>
+                        <th style="width: 200px;">SCAN MATERIAL</th>
+                        <th style="width: 200px;">LOT NO</th>
+                        <th style="width: 60px;">QTY</th>
+                        <th style="width: 50px;">GOOD</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Rows will be generated dynamically -->
+                </tbody>
+            </table>
+
+            <!-- START SCAN MTLS Box -->
+            <div class="scan-box-container">
+                <div class="scan-box">
+                    <div class="scan-box-label">START SCAN MTLS</div>
+                    <input type="text" class="scan-box-input" id="scanMtlsInput" placeholder="Scan here..." onkeydown="handleScanInput(event)">
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side: Kitting Summary (SS2) -->
+        <div class="kitting-summary-section" id="kittingSummarySection">
+            <div class="kitting-summary-title">KITTING SUMMARY</div>
+            <div class="kitting-info">
+                <div class="kitting-info-item">Next Kitting: <strong id="nextKittingNo">1</strong></div>
+                <div class="kitting-info-item">Total: <strong id="totalKittings">0</strong></div>
+            </div>
+            <div style="max-height: 500px; overflow-y: auto;">
+                <table class="kitting-summary-table" id="kittingSummaryTable">
+                    <thead>
+                        <tr>
+                            <th>MTRL DESC</th>
+                            <th>QTY/Unit</th>
+                            <th>SCAN MTRL</th>
+                            <th>LOT NO</th>
+                            <th>QTY/Kit</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kittingSummaryBody">
+                        <!-- Summary rows will be generated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="complete-btn-container">
+                <button class="complete-btn" id="completeBtn" onclick="completeKitting()" disabled>COMPLETE KITTING</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="button-row">
+        <button class="action-btn" onclick="deleteData()">Delete</button>
+        <button class="action-btn" onclick="goToMainMenu()">Main Menu</button>
+        <button class="action-btn" id="submitBtn" onclick="submitData()" disabled>Submit</button>
+    </div>
+
+    <!-- Model Code Selection Modal -->
+    <div class="modal fade" id="modelCodeModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Select Model Code</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="search-box">
+                        <input type="text" class="form-control" id="modelSearchInput" placeholder="Search model code..." oninput="filterModelCodes()">
+                    </div>
+                    <div class="modal-model-list" id="modelCodeList">
+                        <!-- Model codes will be listed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div class="modal fade" id="errorModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header bg-danger text-white" style="border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Error</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 30px; text-align: center;">
+                    <p id="errorMessage" style="font-size: 18px; margin: 0;"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kitting Materials Settings Modal -->
+    <div class="modal fade" id="kittingSettingsModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Kitting Materials</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px; max-height: 500px; overflow-y: auto;">
+                    <div id="kittingEditList"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" onclick="addKittingRows()" style="margin-right: auto;">+ Add Rows</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveKittingMaterials()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Title Edit Modal -->
+    <div class="modal fade" id="titleEditModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Title</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Page Title:</label>
+                        <input type="text" class="form-control" id="editTitleInput" placeholder="Enter page title">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveTitle()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sub Column Edit Modal -->
+    <div class="modal fade" id="subColumnEditModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Sub Column Labels</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Label 1:</label>
+                        <input type="text" class="form-control" id="editSubCol1" placeholder="Job Order #:">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Label 2:</label>
+                        <input type="text" class="form-control" id="editSubCol2" placeholder="Model Code:">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Label 3:</label>
+                        <input type="text" class="form-control" id="editSubCol3" placeholder="Quantity:">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSubColumns()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Button Edit Modal -->
+    <div class="modal fade" id="actionButtonEditModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Action Buttons</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Button 1:</label>
+                        <input type="text" class="form-control" id="editActionBtn1" placeholder="Delete">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Button 2:</label>
+                        <input type="text" class="form-control" id="editActionBtn2" placeholder="Main Menu">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Button 3:</label>
+                        <input type="text" class="form-control" id="editActionBtn3" placeholder="Submit">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveActionButtons()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Column Edit Modal -->
+    <div class="modal fade" id="columnEditModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Column Headers</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 1:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol1" placeholder="KITTING MTLS">
+                                <input type="number" class="form-control" id="editColLen1" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(1)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 2:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol2" placeholder="MTRL DESC">
+                                <input type="number" class="form-control" id="editColLen2" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(2)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 3:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol3" placeholder="MATERIAL CODE">
+                                <input type="number" class="form-control" id="editColLen3" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(3)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 4:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol4" placeholder="QTY">
+                                <input type="number" class="form-control" id="editColLen4" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(4)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 5:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol5" placeholder="SCAN MATERIAL">
+                                <input type="number" class="form-control" id="editColLen5" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(5)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 6:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol6" placeholder="LOT NO">
+                                <input type="number" class="form-control" id="editColLen6" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(6)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 7:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol7" placeholder="QTY">
+                                <input type="number" class="form-control" id="editColLen7" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(7)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 8:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol8" placeholder="GOOD">
+                                <input type="number" class="form-control" id="editColLen8" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(8)">
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-2">Length values are in pixels. Changes apply automatically.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveColumns()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- REF KITTING MTLS Modal -->
+    <div class="modal fade" id="refKittingModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">REF KITTING MTLS Format</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <p class="text-muted">Select the format for KITTING MTLS column:</p>
+                    <div class="d-grid gap-3">
+                        <button type="button" class="btn btn-outline-primary btn-lg" onclick="setRefKittingFormat('text')" style="text-align: left; padding: 15px 20px;">
+                            <strong>TEXT</strong><br>
+                            <small class="text-muted">Example: FRAME ZAM, FRAME LEAD, SPACER</small>
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-lg" onclick="setRefKittingFormat('text_and_num')" style="text-align: left; padding: 15px 20px;">
+                            <strong>TEXT AND NUM</strong><br>
+                            <small class="text-muted">Example: <b>FMB</b>3270905, <b>CG</b>00300401-02A</small>
+                        </button>
+                    </div>
+                    <div class="mt-3 p-3 bg-light rounded" id="currentFormatDisplay">
+                        <small><strong>Current Format:</strong> <span id="currentFormatText">TEXT</span></small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isScanning = false;
+        let scanTimeout = null;
+        let refKittingFormat = 'text'; // Default format: 'text' or 'text_and_num'
+
+        // ==================== EDIT MENU FUNCTIONS ====================
+        function showEditButton() {
+            const editBtn = document.getElementById('editBtn');
+            const settingsIcon = document.querySelector('.settings-icon');
+            settingsIcon.style.display = 'none';
+            editBtn.style.display = 'block';
+        }
+
+        function toggleEditDropdown() {
+            const dropdown = document.getElementById('editDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const container = document.querySelector('.edit-menu-container');
+            const dropdown = document.getElementById('editDropdown');
+            if (container && !container.contains(e.target)) {
+                dropdown.classList.remove('show');
+                // Reset to settings icon after a delay if dropdown is closed
+                const editBtn = document.getElementById('editBtn');
+                const settingsIcon = document.querySelector('.settings-icon');
+                if (editBtn.style.display === 'block') {
+                    setTimeout(() => {
+                        editBtn.style.display = 'none';
+                        settingsIcon.style.display = 'flex';
+                    }, 3000);
+                }
+            }
+        });
+
+        // ==================== TITLE EDIT FUNCTIONS ====================
+        function openTitleEditModal() {
+            document.getElementById('editDropdown').classList.remove('show');
+            const currentTitle = document.querySelector('.main-title').textContent;
+            document.getElementById('editTitleInput').value = currentTitle;
+            const modal = new bootstrap.Modal(document.getElementById('titleEditModal'));
+            modal.show();
+        }
+
+        function saveTitle() {
+            const newTitle = document.getElementById('editTitleInput').value.trim();
+            if (newTitle) {
+                document.querySelector('.main-title').textContent = newTitle;
+                
+                // Save to server for persistence
+                fetch('/api/save_page_title', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ title: newTitle })
+                }).then(r => r.json()).then(data => {
+                    bootstrap.Modal.getInstance(document.getElementById('titleEditModal')).hide();
+                    if (data.success) {
+                        alert('Title saved successfully!');
+                    } else {
+                        alert('Error saving: ' + data.error);
+                    }
+                }).catch(e => {
+                    bootstrap.Modal.getInstance(document.getElementById('titleEditModal')).hide();
+                    alert('Title saved locally!');
+                });
+            }
+        }
+
+        // ==================== SUB COLUMN EDIT FUNCTIONS ====================
+        function openSubColumnEditModal() {
+            document.getElementById('editDropdown').classList.remove('show');
+            const labels = document.querySelectorAll('.header-label');
+            document.getElementById('editSubCol1').value = labels[0] ? labels[0].textContent : '';
+            document.getElementById('editSubCol2').value = labels[1] ? labels[1].textContent : '';
+            document.getElementById('editSubCol3').value = labels[2] ? labels[2].textContent : '';
+            const modal = new bootstrap.Modal(document.getElementById('subColumnEditModal'));
+            modal.show();
+        }
+
+        function saveSubColumns() {
+            const labels = document.querySelectorAll('.header-label');
+            const val1 = document.getElementById('editSubCol1').value.trim();
+            const val2 = document.getElementById('editSubCol2').value.trim();
+            const val3 = document.getElementById('editSubCol3').value.trim();
+            if (labels[0] && val1) labels[0].textContent = val1;
+            if (labels[1] && val2) labels[1].textContent = val2;
+            if (labels[2] && val3) labels[2].textContent = val3;
+            
+            // Save to server for persistence
+            fetch('/api/save_sub_columns', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ sub_columns: [val1, val2, val3] })
+            }).then(r => r.json()).then(data => {
+                bootstrap.Modal.getInstance(document.getElementById('subColumnEditModal')).hide();
+                if (data.success) {
+                    alert('Sub column labels saved successfully!');
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            }).catch(e => {
+                bootstrap.Modal.getInstance(document.getElementById('subColumnEditModal')).hide();
+                alert('Sub column labels saved locally!');
+            });
+        }
+
+        // ==================== REF KITTING MTLS FUNCTIONS ====================
+        function openRefKittingModal() {
+            document.getElementById('editDropdown').classList.remove('show');
+            // Load current format setting
+            fetch('/api/get_ref_kitting_format').then(r => r.json()).then(data => {
+                if (data.success) {
+                    refKittingFormat = data.format || 'text';
+                    document.getElementById('currentFormatText').textContent = refKittingFormat === 'text' ? 'TEXT' : 'TEXT AND NUM';
+                }
+            }).catch(e => console.log('Using default format'));
+            const modal = new bootstrap.Modal(document.getElementById('refKittingModal'));
+            modal.show();
+        }
+
+        function setRefKittingFormat(format) {
+            refKittingFormat = format;
+            document.getElementById('currentFormatText').textContent = format === 'text' ? 'TEXT' : 'TEXT AND NUM';
+            
+            // Save to server
+            fetch('/api/save_ref_kitting_format', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ format: format })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('refKittingModal')).hide();
+                    alert('REF KITTING MTLS format saved! The format will be applied when loading job order data.');
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            }).catch(e => {
+                bootstrap.Modal.getInstance(document.getElementById('refKittingModal')).hide();
+                alert('Format saved locally!');
+            });
+        }
+
+        // ==================== COLUMN EDIT FUNCTIONS ====================
+        function openColumnEditModal() {
+            document.getElementById('editDropdown').classList.remove('show');
+            const headers = document.querySelectorAll('.data-table thead th');
+            // Skip first column (row number), get columns 1-8
+            document.getElementById('editCol1').value = headers[1] ? headers[1].textContent : '';
+            document.getElementById('editCol2').value = headers[2] ? headers[2].textContent : '';
+            document.getElementById('editCol3').value = headers[3] ? headers[3].textContent : '';
+            document.getElementById('editCol4').value = headers[4] ? headers[4].textContent : '';
+            document.getElementById('editCol5').value = headers[5] ? headers[5].textContent : '';
+            document.getElementById('editCol6').value = headers[6] ? headers[6].textContent : '';
+            document.getElementById('editCol7').value = headers[7] ? headers[7].textContent : '';
+            document.getElementById('editCol8').value = headers[8] ? headers[8].textContent : '';
+            // Load current lengths from headers
+            for (let i = 1; i <= 8; i++) {
+                const header = headers[i];
+                const lenInput = document.getElementById('editColLen' + i);
+                if (header && lenInput) {
+                    let currentWidth = header.style.width || header.style.minWidth;
+                    if (!currentWidth) {
+                        currentWidth = window.getComputedStyle(header).width;
+                    }
+                    const width = parseInt(currentWidth) || '';
+                    lenInput.value = width;
+                }
+            }
+            const modal = new bootstrap.Modal(document.getElementById('columnEditModal'));
+            modal.show();
+        }
+
+        function applyColumnLength(colIndex) {
+            const lenInput = document.getElementById('editColLen' + colIndex);
+            const length = lenInput.value.trim();
+            const headers = document.querySelectorAll('.data-table thead th');
+            const header = headers[colIndex];
+            
+            if (header && length) {
+                header.style.width = length + 'px';
+                header.style.minWidth = length + 'px';
+            }
+        }
+
+        function saveColumns() {
+            const headers = document.querySelectorAll('.data-table thead th');
+            const vals = [
+                document.getElementById('editCol1').value.trim(),
+                document.getElementById('editCol2').value.trim(),
+                document.getElementById('editCol3').value.trim(),
+                document.getElementById('editCol4').value.trim(),
+                document.getElementById('editCol5').value.trim(),
+                document.getElementById('editCol6').value.trim(),
+                document.getElementById('editCol7').value.trim(),
+                document.getElementById('editCol8').value.trim()
+            ];
+            const lengths = [
+                document.getElementById('editColLen1').value.trim(),
+                document.getElementById('editColLen2').value.trim(),
+                document.getElementById('editColLen3').value.trim(),
+                document.getElementById('editColLen4').value.trim(),
+                document.getElementById('editColLen5').value.trim(),
+                document.getElementById('editColLen6').value.trim(),
+                document.getElementById('editColLen7').value.trim(),
+                document.getElementById('editColLen8').value.trim()
+            ];
+            for (let i = 0; i < 8; i++) {
+                if (headers[i + 1] && vals[i]) {
+                    headers[i + 1].textContent = vals[i];
+                }
+                if (headers[i + 1] && lengths[i]) {
+                    headers[i + 1].style.width = lengths[i] + 'px';
+                    headers[i + 1].style.minWidth = lengths[i] + 'px';
+                }
+            }
+            
+            // Save to server for persistence
+            fetch('/api/save_column_headers', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ column_headers: vals, column_lengths: lengths })
+            }).then(r => r.json()).then(data => {
+                bootstrap.Modal.getInstance(document.getElementById('columnEditModal')).hide();
+                if (data.success) {
+                    alert('Column headers saved successfully!');
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            }).catch(e => {
+                bootstrap.Modal.getInstance(document.getElementById('columnEditModal')).hide();
+                alert('Column headers saved locally!');
+            });
+        }
+
+        // ==================== ACTION BUTTON EDIT FUNCTIONS ====================
+        function openActionButtonEditModal() {
+            document.getElementById('editDropdown').classList.remove('show');
+            const buttons = document.querySelectorAll('.button-row .action-btn');
+            document.getElementById('editActionBtn1').value = buttons[0] ? buttons[0].textContent : '';
+            document.getElementById('editActionBtn2').value = buttons[1] ? buttons[1].textContent : '';
+            document.getElementById('editActionBtn3').value = buttons[2] ? buttons[2].textContent : '';
+            const modal = new bootstrap.Modal(document.getElementById('actionButtonEditModal'));
+            modal.show();
+        }
+
+        function saveActionButtons() {
+            const buttons = document.querySelectorAll('.button-row .action-btn');
+            const val1 = document.getElementById('editActionBtn1').value.trim();
+            const val2 = document.getElementById('editActionBtn2').value.trim();
+            const val3 = document.getElementById('editActionBtn3').value.trim();
+            if (buttons[0] && val1) buttons[0].textContent = val1;
+            if (buttons[1] && val2) buttons[1].textContent = val2;
+            if (buttons[2] && val3) buttons[2].textContent = val3;
+            
+            // Save to server for persistence
+            fetch('/api/save_action_buttons', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action_buttons: [val1, val2, val3] })
+            }).then(r => r.json()).then(data => {
+                bootstrap.Modal.getInstance(document.getElementById('actionButtonEditModal')).hide();
+                if (data.success) {
+                    alert('Action buttons saved successfully!');
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            }).catch(e => {
+                bootstrap.Modal.getInstance(document.getElementById('actionButtonEditModal')).hide();
+                alert('Action buttons saved locally!');
+            });
+        }
+
+        function handleJobOrderKeydown(event) {
+            const input = document.getElementById('jobOrderInput');
+            
+            // If already at 10 characters, block any additional character input
+            if (input.value.length >= 10) {
+                // Allow backspace, delete, arrow keys, tab only if not scanning
+                const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+                if (!allowedKeys.includes(event.key)) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+            }
+            
+            // Detect barcode scanner (rapid input)
+            if (event.key.length === 1) {
+                isScanning = true;
+                clearTimeout(scanTimeout);
+                scanTimeout = setTimeout(() => {
+                    isScanning = false;
+                    // Trigger carltrial after scan completes
+                    if (input.value.length === 10) {
+                        carltrial();
+                    }
+                }, 100);
+            }
+            
+            // Block Enter and Tab during scanning to prevent focus change
+            if (isScanning && (event.key === 'Enter' || event.key === 'Tab')) {
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+        }
+
+        function limitJobOrder() {
+            const input = document.getElementById('jobOrderInput');
+            // Truncate to 10 characters only
+            if (input.value.length > 10) {
+                input.value = input.value.substring(0, 10);
+            }
+        }
+
+        function carltrial() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            
+            // Ensure only 10 characters
+            const truncatedJobOrder = jobOrder.substring(0, 10);
+            document.getElementById('jobOrderInput').value = truncatedJobOrder;
+            
+            if (!truncatedJobOrder) {
+                return;
+            }
+            
+            // Call API with job order and get item (4th column) for Model Code
+            fetch('/getToriSql?job_order=' + encodeURIComponent(truncatedJobOrder))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Always clear and regenerate table first
+                        generateTableRows(25);
+                        
+                        // Set the Model Code from the 4th column (item)
+                        // Clear previous value first, then set new value if available
+                        document.getElementById('modelCodeInput').value = data.item || '';
+                        console.log('Model Code set to: ' + (data.item || '(empty - no data for this job order)'));
+                        
+                        // Populate MTRL DESC and MATERIAL CODE columns with matched materials
+                        if (data.materials) {
+                            console.log('Materials received:', data.materials);
+                            // Wait a bit for table rows to be generated
+                            setTimeout(() => {
+                                for (const [rowNo, materialData] of Object.entries(data.materials)) {
+                                    // KITTING MTLS column (kitting_name based on format setting)
+                                    if (materialData.kitting_name) {
+                                        // Update the KITTING_MATERIALS object so it shows in the table
+                                        KITTING_MATERIALS[rowNo] = materialData.kitting_name;
+                                        // Also update the table cell directly
+                                        const kittingCell = document.querySelector(`.data-table tbody tr:nth-child(${rowNo}) td:nth-child(2)`);
+                                        if (kittingCell) {
+                                            kittingCell.textContent = materialData.kitting_name;
+                                        }
+                                        console.log('Row ' + rowNo + ' KITTING MTLS: ' + materialData.kitting_name);
+                                    }
+                                    // MTRL DESC column (material description)
+                                    const materialInput = document.getElementById('material_' + rowNo);
+                                    if (materialInput) {
+                                        materialInput.value = materialData.description || materialData;
+                                        console.log('Row ' + rowNo + ' MTRL DESC: ' + (materialData.description || materialData));
+                                    }
+                                    // MATERIAL CODE column
+                                    const materialCodeInput = document.getElementById('materialcode_' + rowNo);
+                                    if (materialCodeInput && materialData.code) {
+                                        materialCodeInput.value = materialData.code;
+                                        console.log('Row ' + rowNo + ' MATERIAL CODE: ' + materialData.code);
+                                    }
+                                    // QTY column (SS1) - matl_qty from 10th column
+                                    const qty1Input = document.getElementById('qty1_' + rowNo);
+                                    if (qty1Input && materialData.qty) {
+                                        qty1Input.value = materialData.qty;
+                                        console.log('Row ' + rowNo + ' QTY (SS1): ' + materialData.qty);
+                                    }
+                                }
+                                // Check all good status after populating
+                                checkAllGood();
+                                
+                                // Update kitting summary
+                                updateKittingSummary();
+                                
+                                // Load kitting info for this job order
+                                loadNextKittingNo();
+                                loadKittingHistory();
+                                
+                                // Auto-focus to "Scan here" input after MATERIAL CODE is populated
+                                const scanInput = document.getElementById('scanMtlsInput');
+                                if (scanInput) {
+                                    scanInput.focus();
+                                    console.log('Auto-focused to Scan here input');
+                                }
+                            }, 100);
+                        }
+                    } else {
+                        console.log('Error: ', data.error || 'Unknown');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error fetching job order data:', err);
+                });
+        }
+    </script>
+
+    <script>
+        let currentRowCount = 25; // Default 25 rows
+        let modelsWithoutBushing = ['60CAT0213P', '60CAT0212P']; // Default models without bushing
+        let allModelCodes = []; // Will be loaded from server
+        let joDbConfigured = false;
+        let materialsConfigured = false;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSettings();
+            loadModelCodesFromServer();
+            loadKittingMaterials();
+            generateTableRows(25);
+            loadSavedSubColumns();
+            loadSavedColumnHeaders();
+            loadSavedPageTitle();
+            loadSavedActionButtons();
+        });
+        
+        function loadSavedSubColumns() {
+            fetch('/api/get_sub_columns').then(r => r.json()).then(data => {
+                if (data.success && data.sub_columns) {
+                    const labels = document.querySelectorAll('.header-label');
+                    if (labels[0] && data.sub_columns[0]) labels[0].textContent = data.sub_columns[0];
+                    if (labels[1] && data.sub_columns[1]) labels[1].textContent = data.sub_columns[1];
+                    if (labels[2] && data.sub_columns[2]) labels[2].textContent = data.sub_columns[2];
+                }
+            }).catch(e => console.log('Using default sub columns'));
+        }
+        
+        function loadSavedColumnHeaders() {
+            fetch('/api/get_column_headers').then(r => r.json()).then(data => {
+                if (data.success) {
+                    setTimeout(() => {
+                        const headers = document.querySelectorAll('.data-table thead th');
+                        // Load column headers
+                        if (data.column_headers) {
+                            for (let i = 0; i < data.column_headers.length && i < 8; i++) {
+                                if (headers[i + 1] && data.column_headers[i]) {
+                                    headers[i + 1].textContent = data.column_headers[i];
+                                }
+                            }
+                        }
+                        // Load column lengths
+                        if (data.column_lengths) {
+                            for (let i = 0; i < data.column_lengths.length && i < 8; i++) {
+                                if (headers[i + 1] && data.column_lengths[i]) {
+                                    headers[i + 1].style.width = data.column_lengths[i] + 'px';
+                                    headers[i + 1].style.minWidth = data.column_lengths[i] + 'px';
+                                }
+                            }
+                        }
+                    }, 100);
+                }
+            }).catch(e => console.log('Using default column headers'));
+        }
+        
+        function loadSavedPageTitle() {
+            fetch('/api/get_page_title').then(r => r.json()).then(data => {
+                if (data.success && data.title) {
+                    const titleElement = document.querySelector('.main-title');
+                    if (titleElement) titleElement.textContent = data.title;
+                }
+            }).catch(e => console.log('Using default page title'));
+        }
+        
+        function loadSavedActionButtons() {
+            fetch('/api/get_action_buttons').then(r => r.json()).then(data => {
+                if (data.success && data.action_buttons) {
+                    const buttons = document.querySelectorAll('.button-row .action-btn');
+                    if (buttons[0] && data.action_buttons[0]) buttons[0].textContent = data.action_buttons[0];
+                    if (buttons[1] && data.action_buttons[1]) buttons[1].textContent = data.action_buttons[1];
+                    if (buttons[2] && data.action_buttons[2]) buttons[2].textContent = data.action_buttons[2];
+                }
+            }).catch(e => console.log('Using default action buttons'));
+        }
+
+        function loadSettings() {
+            fetch('/api/get_settings').then(r => r.json()).then(data => {
+                if (data.success && data.settings) {
+                    joDbConfigured = !!(data.settings.jo_database && data.settings.jo_database.path);
+                    materialsConfigured = !!data.settings.materials_path;
+                }
+            }).catch(e => {
+                joDbConfigured = false;
+                materialsConfigured = false;
+            });
+        }
+
+        function loadModelCodesFromServer() {
+            // Load models without bushing
+            fetch('/api/get_model_codes').then(r => r.json()).then(data => {
+                if (data.success && data.model_codes) {
+                    modelsWithoutBushing = data.model_codes;
+                }
+            });
+
+            // Load all available model codes (sample data - in real app, load from materials file)
+            fetch('/api/get_all_model_codes').then(r => r.json()).then(data => {
+                if (data.success && data.model_codes) {
+                    allModelCodes = data.model_codes;
+                }
+            }).catch(e => {
+                // Use sample data if API not available
+                allModelCodes = [
+                    '60CAT0211P', '60CAT0212P', '60CAT0213P', '60CAT0214P', '60CAT0215P',
+                    '60CAT0216P', '60CAT0217P', '60CAT0218P', '60CAT0219P', '60CAT0220P',
+                    '80CAT0301P', '80CAT0302P', '80CAT0303P', '80CAT0304P', '80CAT0305P'
+                ];
+            });
+        }
+
+        // Kitting material category names for each row (editable)
+        let KITTING_MATERIALS = {
+            1: 'Frame ZAM',
+            2: 'FRAME LEAD',
+            3: 'Spacer',
+            4: '2P',
+            5: 'P3P',
+            6: 'DF Block',
+            7: 'ROD',
+            8: 'Casing Block',
+            9: 'Partition Board',
+            10: 'L-Tube',
+            11: 'Hose Clip',
+            12: 'Switch Block',
+            13: 'Lead Bushing',
+            14: 'Ground wire',
+            15: 'V.C.R.',
+            16: 'Lower Housing',
+            17: 'Rubber Foot',
+            18: 'Power cord',
+            19: 'Partition Gasket',
+            20: 'Upper Housing',
+            21: 'Filter Cover',
+            22: 'Filter',
+            23: 'Sound Absorbing',
+            24: 'Manual',
+            25: 'L-hose set'
+        };
+        let kittingRowCount = 25; // Track number of kitting rows in modal
+
+        // Load saved kitting materials from server on page load
+        function loadKittingMaterials() {
+            fetch('/api/get_kitting_materials').then(r => r.json()).then(data => {
+                if (data.success && data.kitting_materials) {
+                    KITTING_MATERIALS = data.kitting_materials;
+                    // Regenerate table if already loaded
+                    if (currentRowCount > 0) {
+                        generateTableRows(currentRowCount);
+                    }
+                }
+            }).catch(e => console.log('Using default kitting materials'));
+        }
+
+        // Open the kitting settings modal
+        function openKittingSettingsModal() {
+            const editList = document.getElementById('kittingEditList');
+            editList.innerHTML = '';
+            
+            // Determine how many rows to show (at least 25, or more if KITTING_MATERIALS has more)
+            kittingRowCount = Math.max(25, Object.keys(KITTING_MATERIALS).length);
+            
+            for (let i = 1; i <= kittingRowCount; i++) {
+                const div = document.createElement('div');
+                div.className = 'kitting-edit-row';
+                div.innerHTML = `
+                    <label>${i}</label>
+                    <input type="text" id="kitting_edit_${i}" value="${KITTING_MATERIALS[i] || ''}">
+                `;
+                editList.appendChild(div);
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('kittingSettingsModal'));
+            modal.show();
+        }
+        
+        // Add more rows to the kitting settings modal
+        function addKittingRows() {
+            const editList = document.getElementById('kittingEditList');
+            const rowsToAdd = 5; // Add 5 rows at a time
+            
+            for (let i = kittingRowCount + 1; i <= kittingRowCount + rowsToAdd; i++) {
+                const div = document.createElement('div');
+                div.className = 'kitting-edit-row';
+                div.innerHTML = `
+                    <label>${i}</label>
+                    <input type="text" id="kitting_edit_${i}" value="${KITTING_MATERIALS[i] || ''}">
+                `;
+                editList.appendChild(div);
+            }
+            kittingRowCount += rowsToAdd;
+        }
+
+        // Save kitting materials to server
+        function saveKittingMaterials() {
+            const newMaterials = {};
+            for (let i = 1; i <= kittingRowCount; i++) {
+                const input = document.getElementById('kitting_edit_' + i);
+                if (input && input.value.trim()) {
+                    newMaterials[i] = input.value.trim();
+                }
+            }
+            
+            fetch('/api/save_kitting_materials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kitting_materials: newMaterials })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    KITTING_MATERIALS = newMaterials;
+                    generateTableRows(currentRowCount);
+                    bootstrap.Modal.getInstance(document.getElementById('kittingSettingsModal')).hide();
+                    alert('Kitting materials saved successfully!');
+                } else {
+                    alert('Error saving: ' + (data.error || 'Unknown error'));
+                }
+            }).catch(e => {
+                alert('Error saving kitting materials: ' + e);
+            });
+        }
+
+        function generateTableRows(count) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            for (let i = 1; i <= count; i++) {
+                const row = document.createElement('tr');
+                const kittingName = KITTING_MATERIALS[i] || '';
+                row.innerHTML = `
+                    <td class="row-num">${i}</td>
+                    <td>${kittingName}</td>
+                    <td><input type="text" id="material_${i}" class="mtrl-desc" onchange="checkAllGood()" readonly></td>
+                    <td><input type="text" id="materialcode_${i}" class="material-code" readonly></td>
+                    <td><input type="text" id="qty1_${i}" readonly></td>
+                    <td><input type="text" id="scanmaterial_${i}" readonly></td>
+                    <td><input type="text" id="lot_${i}" readonly></td>
+                    <td><input type="text" id="qty_${i}" readonly></td>
+                    <td id="good_cell_${i}"><input type="checkbox" id="good_${i}" onchange="handleGoodChange(${i})"></td>
+                `;
+                tbody.appendChild(row);
+            }
+            currentRowCount = count;
+        }
+
+        // Handle scan input from START SCAN MTLS box
+        function handleScanInput(event) {
+            if (event.key === 'Enter') {
+                const scanInput = document.getElementById('scanMtlsInput');
+                const scannedValue = scanInput.value.trim();
+                
+                if (!scannedValue) return;
+                
+                // Split the scanned value by space
+                const parts = scannedValue.split(' ');
+                if (parts.length < 3) {
+                    alert('Invalid scan format. Expected: MATERIAL_CODE LOT_NO QTY');
+                    scanInput.value = '';
+                    return;
+                }
+                
+                const scannedMaterialCode = parts[0];
+                const scannedLotNo = parts[1];
+                const scannedQty = parts[2];
+                
+                // Find matching row by MATERIAL CODE
+                let matchFound = false;
+                for (let i = 1; i <= currentRowCount; i++) {
+                    const materialCodeInput = document.getElementById('materialcode_' + i);
+                    if (materialCodeInput && materialCodeInput.value.trim() === scannedMaterialCode) {
+                        // Match found - populate SCAN MATERIAL, LOT NO, QTY
+                        document.getElementById('scanmaterial_' + i).value = scannedMaterialCode;
+                        document.getElementById('lot_' + i).value = scannedLotNo;
+                        document.getElementById('qty_' + i).value = scannedQty;
+                        
+                        // Auto-check GOOD checkbox
+                        const goodCheckbox = document.getElementById('good_' + i);
+                        goodCheckbox.checked = true;
+                        handleGoodChange(i);
+                        
+                        matchFound = true;
+                        console.log('Match found at row ' + i + ': ' + scannedMaterialCode);
+                        break;
+                    }
+                }
+                
+                if (!matchFound) {
+                    alert('Material code not found: ' + scannedMaterialCode);
+                }
+                
+                // Clear the scan input for next scan
+                scanInput.value = '';
+            }
+        }
+
+        function handleGoodChange(row) {
+            const goodCheckbox = document.getElementById(`good_${row}`);
+            const goodCell = document.getElementById(`good_cell_${row}`);
+            
+            if (goodCheckbox.checked) {
+                goodCell.classList.add('good-cell');
+            } else {
+                goodCell.classList.remove('good-cell');
+            }
+            checkAllGood();
+        }
+
+        function checkAllGood() {
+            const submitBtn = document.getElementById('submitBtn');
+            let allGood = true;
+            let hasAnyData = false;
+            
+            for (let i = 1; i <= currentRowCount; i++) {
+                const materialInput = document.getElementById(`material_${i}`);
+                const goodCheckbox = document.getElementById(`good_${i}`);
+                
+                // Check if row has material data
+                if (materialInput && materialInput.value.trim()) {
+                    hasAnyData = true;
+                    // If has data, must be checked as GOOD
+                    if (!goodCheckbox.checked) {
+                        allGood = false;
+                    }
+                }
+            }
+            
+            // Enable submit only if all materials with data are marked GOOD
+            if (hasAnyData && allGood) {
+                submitBtn.disabled = false;
+                submitBtn.classList.add('submit-enabled');
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.classList.remove('submit-enabled');
+            }
+        }
+
+        function blockLocalDb() {
+            // Block local database when cursor enters Job Order field
+            fetch('/blockLocalDb');
+        }
+
+        function openModelCodeModal() {
+            // No validation required - user can select model code without configuring materials path
+            renderModelCodeList();
+            new bootstrap.Modal(document.getElementById('modelCodeModal')).show();
+        }
+
+        function renderModelCodeList() {
+            const list = document.getElementById('modelCodeList');
+            const searchTerm = document.getElementById('modelSearchInput').value.toLowerCase();
+            
+            const filteredCodes = allModelCodes.filter(code => 
+                code.toLowerCase().includes(searchTerm)
+            );
+            
+            list.innerHTML = filteredCodes.map(code => `
+                <div class="model-item" onclick="selectModelCode('${code}')">${code}</div>
+            `).join('');
+        }
+
+        function filterModelCodes() {
+            renderModelCodeList();
+        }
+
+        function selectModelCode(code) {
+            document.getElementById('modelCodeInput').value = code;
+            bootstrap.Modal.getInstance(document.getElementById('modelCodeModal')).hide();
+            
+            // Generate 25 rows for the table
+            generateTableRows(25);
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            new bootstrap.Modal(document.getElementById('errorModal')).show();
+        }
+
+        function deleteData() {
+            if (confirm('Are you sure you want to delete all data?')) {
+                document.getElementById('jobOrderInput').value = '';
+                document.getElementById('modelCodeInput').value = '';
+                document.getElementById('quantityInput').value = '260';
+                generateTableRows(25);
+            }
+        }
+
+        function goToMainMenu() {
+            window.location.href = '/';
+        }
+
+        function submitData() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            const modelCode = document.getElementById('modelCodeInput').value;
+            
+            if (!jobOrder || !modelCode) {
+                showError('Please fill in Job Order and Model Code before submitting.');
+                return;
+            }
+            
+            // Collect all material data - MTRL DESC, MATERIAL CODE, MATL_QTY (SS1), SCAN MATERIAL, LOT NO, QTY
+            const materials = [];
+            for (let i = 1; i <= currentRowCount; i++) {
+                const kittingMtls = KITTING_MATERIALS[i] || '';
+                const mtrlDesc = document.getElementById(`material_${i}`).value;
+                const materialCode = document.getElementById(`materialcode_${i}`).value;
+                const matlQty = document.getElementById(`qty1_${i}`).value;
+                const scanMaterial = document.getElementById(`scanmaterial_${i}`).value;
+                const lotNo = document.getElementById(`lot_${i}`).value;
+                const qty = document.getElementById(`qty_${i}`).value;
+                
+                // Only save rows that have data
+                if (mtrlDesc || materialCode || scanMaterial || lotNo || qty || matlQty) {
+                    materials.push({
+                        row_no: i,
+                        kitting_mtls: kittingMtls,
+                        mtrl_desc: mtrlDesc,
+                        material_code: materialCode,
+                        matl_qty: matlQty,
+                        scan_material: scanMaterial,
+                        lot_no: lotNo,
+                        qty: parseInt(qty) || 0
+                    });
+                }
+            }
+            
+            if (materials.length === 0) {
+                showError('No material data to save.');
+                return;
+            }
+            
+            // Submit to MySQL via API
+            fetch('/api/submit_material_data', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    model_code: modelCode,
+                    materials: materials
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    alert('Data saved to MySQL successfully!');
+                } else {
+                    showError('Error saving data: ' + data.error);
+                }
+            }).catch(e => {
+                showError('Error saving data: ' + e);
+            });
+        }
+
+        // ==================== KITTING SUMMARY FUNCTIONS ====================
+        let nextKittingNo = 1;
+        let mainDbData = {}; // Store MAIN_DB data by row_no
+
+        function updateKittingSummary() {
+            const tbody = document.getElementById('kittingSummaryBody');
+            tbody.innerHTML = '';
+            
+            // Get all rows with data
+            for (let i = 1; i <= currentRowCount; i++) {
+                const mtrlDesc = document.getElementById(`material_${i}`).value;
+                const qtyUnit = document.getElementById(`qty1_${i}`).value;
+                const scanMaterial = document.getElementById(`scanmaterial_${i}`).value;
+                const lotNo = document.getElementById(`lot_${i}`).value;
+                
+                // Only show rows with material description
+                if (mtrlDesc) {
+                    const row = document.createElement('tr');
+                    // Truncate material description for display
+                    const shortDesc = mtrlDesc.length > 25 ? mtrlDesc.substring(0, 25) + '...' : mtrlDesc;
+                    // QTY/Kit = QTY/Unit (they are equal)
+                    row.innerHTML = `
+                        <td title="${mtrlDesc}">${shortDesc}</td>
+                        <td>${qtyUnit || ''}</td>
+                        <td>${scanMaterial || ''}</td>
+                        <td>${lotNo || ''}</td>
+                        <td>${qtyUnit || ''}</td>
+                    `;
+                    tbody.appendChild(row);
+                }
+            }
+        }
+
+        function checkCompleteButtonState() {
+            const completeBtn = document.getElementById('completeBtn');
+            let allGood = true;
+            let hasAnyData = false;
+            
+            for (let i = 1; i <= currentRowCount; i++) {
+                const mtrlDesc = document.getElementById(`material_${i}`).value;
+                const checkbox = document.getElementById(`good_${i}`);
+                
+                if (mtrlDesc) {
+                    hasAnyData = true;
+                    if (!checkbox.checked) {
+                        allGood = false;
+                    }
+                }
+            }
+            
+            if (allGood && hasAnyData) {
+                completeBtn.disabled = false;
+                completeBtn.classList.add('enabled');
+            } else {
+                completeBtn.disabled = true;
+                completeBtn.classList.remove('enabled');
+            }
+        }
+
+        function loadNextKittingNo() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            if (!jobOrder) return;
+            
+            fetch(`/api/get_next_kitting_no?job_order=${encodeURIComponent(jobOrder)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        nextKittingNo = data.kitting_no;
+                        document.getElementById('nextKittingNo').textContent = nextKittingNo;
+                    }
+                })
+                .catch(e => console.log('Error loading next kitting no:', e));
+        }
+
+        function loadKittingHistory() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            if (!jobOrder) return;
+            
+            fetch(`/api/get_kitting_db?job_order=${encodeURIComponent(jobOrder)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        // Count unique kitting numbers
+                        const uniqueKittings = new Set(data.data.map(d => d.kitting_no));
+                        document.getElementById('totalKittings').textContent = uniqueKittings.size;
+                    }
+                })
+                .catch(e => console.log('Error loading kitting history:', e));
+        }
+
+        function completeKitting() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            const modelCode = document.getElementById('modelCodeInput').value;
+            
+            if (!jobOrder) {
+                showError('Please enter a Job Order first.');
+                return;
+            }
+            
+            // Collect materials for kitting
+            const materials = [];
+            for (let i = 1; i <= currentRowCount; i++) {
+                const mtrlDesc = document.getElementById(`material_${i}`).value;
+                const qtyUnit = document.getElementById(`qty1_${i}`).value;
+                const scanMaterial = document.getElementById(`scanmaterial_${i}`).value;
+                const lotNo = document.getElementById(`lot_${i}`).value;
+                const qty = document.getElementById(`qty_${i}`).value;
+                
+                if (mtrlDesc) {
+                    materials.push({
+                        row_no: i,
+                        material_description: mtrlDesc,
+                        qty_unit: parseInt(qtyUnit) || 0,
+                        scan_material: scanMaterial,
+                        lot_no: lotNo,
+                        qty_kitting: parseInt(qty) || 0
+                    });
+                }
+            }
+            
+            if (materials.length === 0) {
+                showError('No materials to complete kitting.');
+                return;
+            }
+            
+            // Confirm before completing
+            if (!confirm(`Complete Kitting #${nextKittingNo}?\n\nThis will save ${materials.length} materials to KITTING_DB and deduct quantities from MAIN_DB.`)) {
+                return;
+            }
+            
+            // Save to KITTING_DB
+            fetch('/api/complete_kitting', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    model_code: modelCode,
+                    materials: materials
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    alert(`Kitting #${data.kitting_no} completed successfully!`);
+                    
+                    // Update UI
+                    nextKittingNo = data.kitting_no + 1;
+                    document.getElementById('nextKittingNo').textContent = nextKittingNo;
+                    
+                    // Deduct QTY/Unit from SS1 QTY field for each row
+                    for (let i = 1; i <= currentRowCount; i++) {
+                        const mtrlDesc = document.getElementById(`material_${i}`).value;
+                        if (mtrlDesc) {
+                            const qtyUnitField = document.getElementById(`qty1_${i}`);
+                            const qtyField = document.getElementById(`qty_${i}`);
+                            const qtyUnit = parseInt(qtyUnitField.value) || 0;
+                            const currentQty = parseInt(qtyField.value) || 0;
+                            
+                            // Deduct QTY/Unit from QTY (SS1 QTY = SS1 QTY - QTY/Unit)
+                            const newQty = currentQty - qtyUnit;
+                            qtyField.value = newQty >= 0 ? newQty : 0;
+                        }
+                    }
+                    
+                    // Reload kitting history
+                    loadKittingHistory();
+                    
+                    // Reset checkboxes for next kitting
+                    for (let i = 1; i <= currentRowCount; i++) {
+                        const checkbox = document.getElementById(`good_${i}`);
+                        if (checkbox) {
+                            checkbox.checked = false;
+                            handleGoodChange(i);
+                        }
+                    }
+                    
+                    // Update complete button state
+                    checkCompleteButtonState();
+                    
+                    // Update kitting summary to reflect new QTY values
+                    updateKittingSummary();
+                    
+                    // Also save to MAIN_DB with updated QTY
+                    saveToMainDb();
+                } else {
+                    showError('Error completing kitting: ' + data.error);
+                }
+            }).catch(e => {
+                showError('Error completing kitting: ' + e);
+            });
+        }
+
+        function saveToMainDb() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            const modelCode = document.getElementById('modelCodeInput').value;
+            
+            if (!jobOrder) return;
+            
+            // Collect materials for MAIN_DB
+            const materials = [];
+            for (let i = 1; i <= currentRowCount; i++) {
+                const mtrlDesc = document.getElementById(`material_${i}`).value;
+                const qtyUnit = document.getElementById(`qty1_${i}`).value;
+                const scanMaterial = document.getElementById(`scanmaterial_${i}`).value;
+                const lotNo = document.getElementById(`lot_${i}`).value;
+                const qty = document.getElementById(`qty_${i}`).value;
+                
+                if (mtrlDesc && lotNo) {
+                    // qty is the remaining quantity (SS1 QTY field)
+                    // remaining_qty = current qty value (already deducted after kitting)
+                    materials.push({
+                        row_no: i,
+                        material_description: mtrlDesc,
+                        qty_unit: parseInt(qtyUnit) || 0,
+                        scan_material: scanMaterial,
+                        lot_no: lotNo,
+                        remaining_qty: parseInt(qty) || 0
+                    });
+                }
+            }
+            
+            if (materials.length === 0) return;
+            
+            fetch('/api/save_main_db', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    model_code: modelCode,
+                    materials: materials
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    console.log('Saved to MAIN_DB');
+                }
+            }).catch(e => console.log('Error saving to MAIN_DB:', e));
+        }
+
+        // Override handleGoodChange to also check complete button state
+        const originalHandleGoodChange = typeof handleGoodChange === 'function' ? handleGoodChange : null;
+        function handleGoodChange(rowNum) {
+            const checkbox = document.getElementById(`good_${rowNum}`);
+            const cell = document.getElementById(`good_cell_${rowNum}`);
+            
+            if (checkbox.checked) {
+                cell.classList.add('good-cell');
+                cell.classList.remove('ng-cell');
+            } else {
+                cell.classList.remove('good-cell');
+            }
+            
+            checkAllGood();
+            checkCompleteButtonState();
+            updateKittingSummary();
+        }
+
+        // ==================== AUTO-RELOAD ON SERVER RESTART ====================
+        let knownServerStartTime = null;
+        async function checkServerRestart() {
+            try {
+                const response = await fetch('/api/server_start_time');
+                const data = await response.json();
+                if (data.success) {
+                    if (knownServerStartTime === null) {
+                        knownServerStartTime = data.start_time;
+                    } else if (knownServerStartTime !== data.start_time) {
+                        console.log('[AUTO-RELOAD] Server restart detected, reloading page...');
+                        location.reload();
+                    }
+                }
+            } catch (err) {}
+        }
+        setInterval(checkServerRestart, 2000);
+        checkServerRestart();
+    </script>
+
+</body>
+</html>
