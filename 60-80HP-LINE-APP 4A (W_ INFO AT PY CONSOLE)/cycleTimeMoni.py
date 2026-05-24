@@ -597,7 +597,16 @@ def get_tori_sql():
                             # Determine kitting_name based on format setting
                             if ref_kitting_format == 'text_and_num':
                                 # Use material code (e.g., FMB3270905)
-                                kitting_name = mat_code if mat_code else category
+                                kitting_name = category  # Will be overwritten below
+                            # Load kitting_name from kitting_materials.json
+                            if os.path.exists(KITTING_MATERIALS_FILE):
+                                try:
+                                    with open(KITTING_MATERIALS_FILE, 'r') as f:
+                                        saved_materials = json.load(f)
+                                        if str(row_no) in saved_materials:
+                                            kitting_name = saved_materials[str(row_no)]
+                                except:
+                                    pass
                             else:
                                 # Use category text (e.g., FRAME ZAM)
                                 kitting_name = category
@@ -769,7 +778,7 @@ def complete_kitting():
             if plan_qty and int(plan_qty) > 0:
                 db_manager.save_joborder_plan(job_order, suffix, model_code, formatted_qr_code, plan_qty)
             
-            # Update MAIN_DB: qty_kitting += qty_unit, remaining_qty -= qty_unit
+            # Update MAIN_DB: remaining_qty -= qty_unit
             for material in materials:
                 row_no = material.get('row_no', 0)
                 qty_unit = int(material.get('qty_unit', 0) or 0)
@@ -864,6 +873,21 @@ def get_all_kitting_summary():
         print(f"Error getting all kitting summary: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+
+@app.route("/api/reset_kitting_summary_ids", methods=["POST"])
+def reset_kitting_summary_ids():
+    """Reset kitting_summary table IDs to be sequential (fixes gaps in AUTO_INCREMENT)"""
+    try:
+        result = db_manager.reset_kitting_summary_ids()
+        
+        if result:
+            return jsonify({"success": True, "message": "Kitting summary IDs have been reset to sequential order"})
+        else:
+            return jsonify({"success": False, "error": "Failed to reset kitting summary IDs"}), 500
+            
+    except Exception as e:
+        print(f"Error resetting kitting summary IDs: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 @app.route("/api/get_kitting_summary", methods=["GET"])
 def get_kitting_summary():
     """Get kitting summary data from kitting_summary table"""
@@ -898,14 +922,14 @@ def get_next_kitting_no():
 
 @app.route("/api/fix_main_db", methods=["POST"])
 def fix_main_db():
-    """Fix existing MAIN_DB data: set qty_kitting = qty_unit and remaining_qty = 20 - qty_unit"""
+    """Fix existing MAIN_DB data: set lot_qty from material data"""
     try:
         job_order = request.args.get('job_order', '')
         
         if not job_order:
             return jsonify({"success": False, "error": "Job order is required"}), 400
         
-        affected_rows = db_manager.fix_main_db_qty_kitting(job_order)
+        affected_rows = db_manager.fix_main_db_lot_qty(job_order)
         return jsonify({"success": True, "message": f"Fixed {affected_rows} rows in MAIN_DB"})
             
     except Exception as e:

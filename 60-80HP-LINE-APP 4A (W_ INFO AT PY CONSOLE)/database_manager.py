@@ -231,8 +231,8 @@ class DatabaseManager:
             
             # Create MAIN_DB table for material setter main data (SS1)
             # This stores the current state of materials with remaining QTY
-            # qty_kitting = total qty used across all kittings
-            # remaining_qty = qty_unit - qty_kitting
+            # lot_qty = LOT QTY from Total Quantity Monitor
+            # remaining_qty = REM QTY
             create_main_db_table = """
             CREATE TABLE IF NOT EXISTS MAIN_DB (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -243,7 +243,7 @@ class DatabaseManager:
                 qty_unit INT DEFAULT 0,
                 scan_material VARCHAR(100),
                 lot_no VARCHAR(100),
-                qty_kitting INT DEFAULT 0,
+                lot_qty INT DEFAULT 0,
                 remaining_qty INT DEFAULT 0,
                 date_today DATE,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1557,7 +1557,7 @@ class DatabaseManager:
             job_order: Job order number
             model_code: Model code
             materials: List of material dictionaries with row_no, material_description, 
-                      qty_unit, scan_material, lot_no, qty_kitting
+                      qty_unit, scan_material, lot_no, lot_qty
         """
         connection = None
         cursor = None
@@ -1580,7 +1580,7 @@ class DatabaseManager:
             upsert_query = """
             INSERT INTO MAIN_DB 
             (id, job_order, model_code, row_no, material_description, qty_unit, scan_material, 
-             lot_no, qty_kitting, remaining_qty, date_today)
+             lot_no, lot_qty, remaining_qty, date_today)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 id = VALUES(id),
@@ -1594,8 +1594,8 @@ class DatabaseManager:
             
             for material in materials:
                 qty_unit = int(material.get('qty_unit', 0) or 0)
-                # qty_kitting should equal qty_unit (per user requirement)
-                qty_kitting = qty_unit
+                # lot_qty from material data
+                lot_qty = int(material.get('lot_qty', 0) or 0)
                 remaining_qty = int(material.get('remaining_qty', qty_unit) or qty_unit)
                 row_no = material.get('row_no', 0)
                 
@@ -1608,7 +1608,7 @@ class DatabaseManager:
                     qty_unit,
                     material.get('scan_material', ''),
                     material.get('lot_no', ''),
-                    qty_kitting,
+                    lot_qty,
                     remaining_qty,
                     today
                 )
@@ -1828,7 +1828,6 @@ class DatabaseManager:
     def update_main_db_after_kitting(self, job_order, row_no, qty_used):
         """Update MAIN_DB after kitting completion
         
-        qty_kitting = qty_kitting + qty_used (accumulate total used)
         remaining_qty = remaining_qty - qty_used (deduct from remaining)
         """
         connection = None
@@ -1844,7 +1843,7 @@ class DatabaseManager:
             )
             cursor = connection.cursor()
             
-            # Update remaining_qty (subtract) - qty_kitting stays equal to qty_unit
+            # Update remaining_qty (subtract) - lot_qty stays unchanged
             update_query = """
             UPDATE MAIN_DB 
             SET remaining_qty = remaining_qty - %s
@@ -1866,8 +1865,8 @@ class DatabaseManager:
             if connection:
                 connection.close()
 
-    def fix_main_db_qty_kitting(self, job_order):
-        """Fix existing MAIN_DB data: set qty_kitting = qty_unit and remaining_qty = 20 - qty_unit"""
+    def fix_main_db_lot_qty(self, job_order):
+        """Fix existing MAIN_DB data: set lot_qty from material data"""
         connection = None
         cursor = None
         try:
@@ -1881,10 +1880,10 @@ class DatabaseManager:
             )
             cursor = connection.cursor()
             
-            # Fix qty_kitting = qty_unit (don't change remaining_qty)
+            # This function is kept for compatibility but lot_qty should be set from UI
             update_query = """
             UPDATE MAIN_DB 
-            SET qty_kitting = qty_unit
+            SET lot_qty = lot_qty
             WHERE job_order = %s
             """
             cursor.execute(update_query, (job_order,))
@@ -2428,6 +2427,87 @@ class DatabaseManager:
             
         except Exception as e:
             print(f"Error clearing joborder_plan: {e}")
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def reset_kitting_summary_ids(self):
+        """Reset kitting_summary table with sequential IDs matching row_no order.
+        This fixes gaps in the AUTO_INCREMENT id column by:
+        1. Backing up all data
+        2. Truncating the table (resets AUTO_INCREMENT)
+        3. Re-inserting all rows ordered by job_order and row_no
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor(dictionary=True)
+            
+            # Step 1: Backup all data ordered by job_order and row_no
+            cursor.execute("""
+                SELECT job_order, model_code, row_no, material_description, material_code, 
+                       qty_unit, scan_material, lot_no, qty_kit, date_today, timestamp
+                FROM kitting_summary 
+                ORDER BY job_order, row_no ASC
+            """)
+            backup_data = cursor.fetchall()
+            
+            if not backup_data:
+                print("No data in kitting_summary to reset")
+                return True
+            
+            print(f"Backed up {len(backup_data)} rows from kitting_summary")
+            
+            # Step 2: Truncate table (resets AUTO_INCREMENT to 1)
+            cursor.execute("TRUNCATE TABLE kitting_summary")
+            print("Truncated kitting_summary table")
+            
+            # Step 3: Re-insert all rows (will get sequential IDs 1, 2, 3, ...)
+            insert_query = """
+                INSERT INTO kitting_summary 
+                (job_order, model_code, row_no, material_description, material_code, 
+                 qty_unit, scan_material, lot_no, qty_kit, date_today, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            for row in backup_data:
+                values = (
+                    row['job_order'],
+                    row['model_code'],
+                    row['row_no'],
+                    row['material_description'],
+                    row['material_code'],
+                    row['qty_unit'],
+                    row['scan_material'],
+                    row['lot_no'],
+                    row['qty_kit'],
+                    row['date_today'],
+                    row['timestamp']
+                )
+                cursor.execute(insert_query, values)
+            
+            connection.commit()
+            print(f"Re-inserted {len(backup_data)} rows with sequential IDs")
+            return True
+            
+        except Exception as e:
+            print(f"Error resetting kitting_summary IDs: {e}")
+            if connection:
+                connection.rollback()
             return False
         finally:
             if cursor:

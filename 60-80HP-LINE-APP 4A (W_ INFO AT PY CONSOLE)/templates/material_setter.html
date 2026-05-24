@@ -456,7 +456,7 @@
     <div class="scan-box-container">
         <div class="scan-box">
             <div class="scan-box-label">START SCAN MTLS</div>
-            <input type="text" class="scan-box-input" id="scanMtlsInput" placeholder="Scan here..." onkeydown="handleScanInput(event)">
+            <input type="text" class="scan-box-input" id="scanMtlsInput" placeholder="Scan here..." onkeydown="handleScanInput(event)" autocomplete="off">
         </div>
     </div>
 
@@ -464,7 +464,7 @@
         <div id="totalQuantityMonitorButton" class="action-btn" onclick="openTotalQuantityMonitorModal()">Total Quantity Monitor</div>
         <div class="header-item">
             <div class="header-label">Job Order #:</div>
-            <input type="text" class="header-input" id="jobOrderInput" placeholder="Scan JO#" onfocus="blockLocalDb()" onkeydown="handleJobOrderKeydown(event)" onchange="carltrial()">
+            <input type="text" class="header-input" id="jobOrderInput" placeholder="Scan JO#" onfocus="blockLocalDb()" onkeydown="handleJobOrderKeydown(event)" onchange="carltrial()" autocomplete="off">
             <input style="width: 100px;" type="text" class="header-input" id="jobOrderSuffix" placeholder="Suffix" maxlength="5">
         </div>
         <div class="header-item">
@@ -1627,16 +1627,12 @@
                             // Wait a bit for table rows to be generated
                             setTimeout(() => {
                                 for (const [rowNo, materialData] of Object.entries(data.materials)) {
-                                    // KITTING MTLS column (kitting_name based on format setting)
-                                    if (materialData.kitting_name) {
-                                        // Update the KITTING_MATERIALS object so it shows in the table
-                                        KITTING_MATERIALS[rowNo] = materialData.kitting_name;
-                                        // Also update the table cell directly
-                                        const kittingCell = document.querySelector(`.data-table tbody tr:nth-child(${rowNo}) td:nth-child(2)`);
-                                        if (kittingCell) {
-                                            kittingCell.textContent = materialData.kitting_name;
-                                        }
-                                        console.log('Row ' + rowNo + ' KITTING MTLS: ' + materialData.kitting_name);
+                                    // KITTING MTLS column - use saved values from KITTING_MATERIALS (loaded from kitting_materials.json)
+                                    // Do NOT overwrite with server data - always use the saved kitting_materials.json values
+                                    const kittingCell = document.querySelector(`.data-table tbody tr:nth-child(${rowNo}) td:nth-child(2)`);
+                                    if (kittingCell && KITTING_MATERIALS[rowNo]) {
+                                        kittingCell.textContent = KITTING_MATERIALS[rowNo];
+                                        console.log('Row ' + rowNo + ' KITTING MTLS: ' + KITTING_MATERIALS[rowNo]);
                                     }
                                     // MTRL DESC column (material description)
                                     const materialInput = document.getElementById('material_' + rowNo);
@@ -1899,21 +1895,43 @@
             const editList = document.getElementById('kittingEditList');
             editList.innerHTML = '';
             
-            // Determine how many rows to show (at least 25, or more if KITTING_MATERIALS has more)
-            kittingRowCount = Math.max(25, Object.keys(KITTING_MATERIALS).length);
-            
-            for (let i = 1; i <= kittingRowCount; i++) {
-                const div = document.createElement('div');
-                div.className = 'kitting-edit-row';
-                div.innerHTML = `
-                    <label>${i}</label>
-                    <input type="text" id="kitting_edit_${i}" value="${KITTING_MATERIALS[i] || ''}">
-                `;
-                editList.appendChild(div);
-            }
-            
-            const modal = new bootstrap.Modal(document.getElementById('kittingSettingsModal'));
-            modal.show();
+            // Fetch fresh data from server before opening modal
+            fetch('/api/get_kitting_materials').then(r => r.json()).then(data => {
+                if (data.success && data.kitting_materials) {
+                    KITTING_MATERIALS = data.kitting_materials;
+                }
+                
+                // Determine how many rows to show (at least 26, or more if KITTING_MATERIALS has more)
+                kittingRowCount = Math.max(26, Object.keys(KITTING_MATERIALS).length);
+                
+                for (let i = 1; i <= kittingRowCount; i++) {
+                    const div = document.createElement('div');
+                    div.className = 'kitting-edit-row';
+                    div.innerHTML = `
+                        <label>${i}</label>
+                        <input type="text" id="kitting_edit_${i}" value="${KITTING_MATERIALS[i] || ''}">
+                    `;
+                    editList.appendChild(div);
+                }
+                
+                const modal = new bootstrap.Modal(document.getElementById('kittingSettingsModal'));
+                modal.show();
+            }).catch(e => {
+                console.log('Error loading kitting materials:', e);
+                // Fallback to existing data
+                kittingRowCount = Math.max(26, Object.keys(KITTING_MATERIALS).length);
+                for (let i = 1; i <= kittingRowCount; i++) {
+                    const div = document.createElement('div');
+                    div.className = 'kitting-edit-row';
+                    div.innerHTML = `
+                        <label>${i}</label>
+                        <input type="text" id="kitting_edit_${i}" value="${KITTING_MATERIALS[i] || ''}">
+                    `;
+                    editList.appendChild(div);
+                }
+                const modal = new bootstrap.Modal(document.getElementById('kittingSettingsModal'));
+                modal.show();
+            });
         }
         
         // Add one row to the kitting settings modal
@@ -2665,7 +2683,7 @@
                         qty_unit: parseInt(qtyUnit) || 0,
                         scan_material: scanMaterial,
                         lot_no: lotNo,
-                        qty_kitting: parseInt(qty) || 0
+                        lot_qty: parseInt(qty) || 0
                     });
                 }
             }
@@ -3531,17 +3549,22 @@
                 const scanMaterial = scanMaterialInput ? scanMaterialInput.value : '';
                 const lotNo = lotNoInput ? lotNoInput.value : '';
                 const qty = qtyInput ? qtyInput.value : '';
+                const remQtyInput = row.querySelector('input[id^="remaining_qty_"]');
+                const remQty = remQtyInput ? remQtyInput.value : '';
                 
                 if (mtrlDesc && lotNo) {
                     // Only save rows that have been scanned (have lot number)
                     // Use visual row position (1-25) not the element ID number
+                    // qty = LOT QTY (scanned quantity from QR code, e.g., 20)
+                    // remQty = REM QTY (remaining quantity after kitting)
                     materials.push({
                         row_no: visualRowNo,
                         material_description: mtrlDesc,
                         qty_unit: parseInt(qtyUnit) || 0,
                         scan_material: scanMaterial || '',
                         lot_no: lotNo,
-                        remaining_qty: parseInt(qty) || 0
+                        lot_qty: parseInt(qty) || 0,
+                        remaining_qty: parseInt(remQty) || parseInt(qty) || 0
                     });
                 }
             });
@@ -3563,8 +3586,9 @@
                         // Update existing entry with new lot data
                         materials[existingIdx].scan_material = rowData.newScanMaterial || '';
                         materials[existingIdx].lot_no = rowData.newLotNo || '';
+                        materials[existingIdx].lot_qty = parseInt(rowData.newScannedQty) || 0;
                         materials[existingIdx].remaining_qty = rowData.newRemQty !== undefined ? rowData.newRemQty : (parseInt(rowData.newScannedQty) || 0);
-                        console.log('Updated row ' + rowNo + ' with new lot data: LOT=' + rowData.newLotNo + ', REM QTY=' + materials[existingIdx].remaining_qty);
+                        console.log('Updated row ' + rowNo + ' with new lot data: LOT=' + rowData.newLotNo + ', LOT QTY=' + materials[existingIdx].lot_qty + ', REM QTY=' + materials[existingIdx].remaining_qty);
                     } else if (mtrlDesc) {
                         // Add new entry if not found
                         materials.push({
@@ -3573,9 +3597,10 @@
                             qty_unit: rowData.qtyUnit || 0,
                             scan_material: rowData.newScanMaterial || '',
                             lot_no: rowData.newLotNo || '',
+                            lot_qty: parseInt(rowData.newScannedQty) || 0,
                             remaining_qty: rowData.newRemQty !== undefined ? rowData.newRemQty : (parseInt(rowData.newScannedQty) || 0)
                         });
-                        console.log('Added new lot row ' + rowNo + ' to MAIN_DB: LOT=' + rowData.newLotNo + ', REM QTY=' + (rowData.newRemQty !== undefined ? rowData.newRemQty : rowData.newScannedQty));
+                        console.log('Added new lot row ' + rowNo + ' to MAIN_DB: LOT=' + rowData.newLotNo + ', LOT QTY=' + rowData.newScannedQty + ', REM QTY=' + (rowData.newRemQty !== undefined ? rowData.newRemQty : rowData.newScannedQty));
                     }
                 }
             }
