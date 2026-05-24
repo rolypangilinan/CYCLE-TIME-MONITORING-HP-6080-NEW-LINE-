@@ -1,0 +1,3642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Order and Material Data</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body {
+            background: #f5f5f5;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        
+        /* Insufficient quantity row styling */
+        .insufficient-qty-row {
+            background-color: #ffcccc !important;
+        }
+        .insufficient-qty-row input {
+            background-color: #ffcccc !important;
+        }
+        
+        /* New lot row styling */
+        .new-lot-row {
+            background-color: #ffffcc !important;
+        }
+        .new-lot-row input {
+            background-color: #ffffcc !important;
+        }
+
+        .main-title {
+            background: #d3d3d3;
+            border: 3px solid #9370db;
+            padding: 20px 60px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin: 0 auto 30px;
+            max-width: 500px;
+        }
+
+        .header-row {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .header-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-label {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 8px 15px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .header-input {
+            border: 2px solid #9370db;
+            padding: 8px 15px;
+            min-width: 120px;
+            background: white;
+        }
+
+        .header-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .model-code-input {
+            cursor: pointer;
+            background: white;
+        }
+
+        .data-table {
+            width: auto;
+            max-width: 100%;
+            margin: 0 auto 20px;
+            border-collapse: collapse;
+            table-layout: auto;
+        }
+
+        .data-table th {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 10px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .data-table td {
+            border: 1px solid #9370db;
+            padding: 5px;
+            text-align: center;
+            background: white;
+        }
+
+        .data-table .row-num {
+            width: 30px;
+            background: #f0f0f0;
+        }
+
+        .data-table input[type="text"] {
+            width: 100%;
+            border: none;
+            padding: 5px;
+            text-align: center;
+        }
+        
+        .data-table input.mtrl-desc {
+            text-align: left;
+            width: 100%;
+        }
+        
+        .data-table input.material-code {
+            text-align: left;
+            width: 100%;
+        }
+        
+        .data-table td:nth-child(2) {
+            white-space: nowrap;
+        }
+        
+        .data-table td:nth-child(3) {
+            white-space: nowrap;
+        }
+        
+        .data-table td:nth-child(5) {
+            white-space: nowrap;
+        }
+
+        .data-table input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .good-cell {
+            background: #90EE90 !important;
+        }
+
+        .ng-cell {
+            background: #ff6b6b !important;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .action-btn {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 12px 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .action-btn:hover {
+            background: #c0c0c0;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-btn.submit-enabled {
+            background: #90EE90;
+            border-color: #228B22;
+        }
+
+        .action-btn.complete-enabled {
+            background: #FFD700;
+            border-color: #DAA520;
+            animation: pulse-complete 1s infinite;
+        }
+
+        @keyframes pulse-complete {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Main container for side-by-side layout */
+        .tables-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .main-table-section {
+            flex: 1;
+            min-width: 800px;
+        }
+
+        .kitting-summary-section {
+            max-width: 1400px;
+            width: 100%;
+            background: #f8f9fa;
+            border: 2px solid #9370db;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .kitting-summary-title {
+            background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%);
+            color: white;
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .kitting-summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .kitting-summary-table th {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 10px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .kitting-summary-table td {
+            border: 1px solid #9370db;
+            padding: 8px;
+            text-align: center;
+            background: white;
+            font-size: 13px;
+        }
+
+        .kitting-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .kitting-info-item {
+            background: #e9ecef;
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+
+        .complete-btn-container {
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        .complete-btn {
+            background: #d3d3d3;
+            border: 2px solid #9370db;
+            padding: 15px 50px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .complete-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .complete-btn.enabled {
+            background: #FFD700;
+            border-color: #DAA520;
+        }
+
+        .qty-consumed {
+            background: #ffcccc !important;
+        }
+
+        .modal-model-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .model-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .model-item:hover {
+            background: #e9ecef;
+        }
+
+        .model-item.selected {
+            background: #667eea;
+            color: white;
+        }
+
+        .search-box {
+            margin-bottom: 15px;
+        }
+
+        .settings-icon {
+            /* position: fixed; */
+            float: right;
+            top: 20px;
+            right: 20px;
+            width: 32px;
+            height: 32px;
+            background: #9370db;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .settings-icon:hover {
+            background: #7b5fc4;
+        }
+        .settings-icon svg {
+            width: 18px;
+            height: 18px;
+            fill: white;
+        }
+        .scan-box-container {
+            position: fixed;
+            float: right;
+            width: 300px;
+            top: 150px;
+            right: 20px;
+            /* z-index: 100; */
+        }
+        .scan-box {
+            border: 3px solid #9370db;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .scan-box-label {
+            background: #9370db;
+            color: white;
+            padding: 8px 15px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .scan-box-input {
+            width: 200px;
+            padding: 10px;
+            border: 2px solid #9370db;
+            border-radius: 4px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .scan-box-input:focus {
+            outline: none;
+            border-color: #7b5fc4;
+            box-shadow: 0 0 5px rgba(147, 112, 219, 0.5);
+        }
+        .kitting-edit-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .kitting-edit-row label {
+            width: 30px;
+            font-weight: bold;
+        }
+        .kitting-edit-row input {
+            flex: 1;
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        
+        /* Edit Menu Styles */
+        .edit-menu-container {
+            /* position: fixed; */
+            float: right;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .edit-btn {
+            background: #9370db;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            display: none;
+        }
+        .edit-btn:hover {
+            background: #7b5fc4;
+        }
+        .edit-dropdown {
+            position: absolute;
+            /* top: 100%; */
+            right: 0;
+            background: white;
+            border: 2px solid #9370db;
+            border-radius: 5px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            display: none;
+            min-width: 150px;
+            margin-top: 5px;
+        }
+        .edit-dropdown.show {
+            display: block;
+        }
+        .edit-dropdown-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-weight: bold;
+        }
+        .edit-dropdown-item:last-child {
+            border-bottom: none;
+        }
+        .edit-dropdown-item:hover {
+            background: #f0e6ff;
+        }
+    </style>
+</head>
+<body>
+
+    
+
+    <div class="main-title">Job Order and Material Data</div>
+    <br>
+    <br>
+
+    <!-- START SCAN MTLS Box -->
+    <div class="scan-box-container">
+        <div class="scan-box">
+            <div class="scan-box-label">START SCAN MTLS</div>
+            <input type="text" class="scan-box-input" id="scanMtlsInput" placeholder="Scan here..." onkeydown="handleScanInput(event)">
+        </div>
+    </div>
+
+    <div class="header-row">
+        <div id="totalQuantityMonitorButton" class="action-btn" onclick="openTotalQuantityMonitorModal()">Total Quantity Monitor</div>
+        <div class="header-item">
+            <div class="header-label">Job Order #:</div>
+            <input type="text" class="header-input" id="jobOrderInput" placeholder="Scan JO#" onfocus="blockLocalDb()" onkeydown="handleJobOrderKeydown(event)" onchange="carltrial()">
+            <input style="width: 100px;" type="text" class="header-input" id="jobOrderSuffix" placeholder="Suffix" maxlength="5">
+        </div>
+        <div class="header-item">
+            <div class="header-label">Model Code:</div>
+            <input type="text" class="header-input model-code-input" id="modelCodeInput" readonly onclick="openModelCodeModal()" placeholder="Select..." value="{{suffix}}">
+        </div>
+        <div class="header-item">
+            <div class="header-label">Quantity:</div>
+            <input type="text" class="header-input" id="quantityInput" value="260" style="width: 80px;">
+        </div>
+    </div>
+
+    
+
+    <!-- Main Tables Container -->
+    <div class="tables-container">
+
+        <!-- Right Side: Kitting Summary (SS2) -->
+        <div class="kitting-summary-section" id="kittingSummarySection">
+            <div class="kitting-summary-title">KITTING SUMMARY</div>
+            <div class="kitting-info" style="display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; gap: 20px;">
+                    <div class="kitting-info-item">Next Kitting: <strong id="nextKittingNo">1</strong></div>
+                    <div class="kitting-info-item">Total: <strong id="totalKittings">0</strong></div>
+                </div>
+                <div id="kittingQrCodeContainer" style="display: flex; align-items: center; gap: 10px;">
+                    <div id="kittingQrCode" style="background: white; padding: 8px; border: 2px solid #9370db; min-width: 100px; min-height: 100px; display: flex; align-items: center; justify-content: center;"></div>
+                    <div id="kittingQrCodeText" style="font-weight: bold; font-size: 16px; color: #333;"></div>
+                </div>
+            </div>
+            <div style="max-height: 500px; overflow-y: auto;">
+                <table class="kitting-summary-table" id="kittingSummaryTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 30px;">#</th>
+                            <th>MTRL DESC</th>
+                            <th>QTY/Unit</th>
+                            <th>SCAN MTRL</th>
+                            <th>LOT NO</th>
+                            <th>QTY/Kit</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kittingSummaryBody">
+                        <!-- Summary rows will be generated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="complete-btn-container">
+                <div style="display: flex; align-items: center; gap: 15px; justify-content: center;">
+                    <input type="text" id="scanKittingQrInput" placeholder="Scan Kitting QR Code to save..." 
+                           style="padding: 12px 20px; border: 3px solid #9370db; border-radius: 5px; width: 300px; font-size: 16px; font-weight: bold;"
+                           onkeypress="handleKittingQrScan(event)" disabled>
+                </div>
+            </div>
+        </div>
+
+
+
+        
+        
+
+        
+    </div>
+    
+    
+
+
+    <!-- totalQuantityMonitor -->
+    <div class="modal fade" id="totalQuantityMonitorModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px; width: 3000px; margin-left: -300px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Title</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    
+
+
+                    <h1 style="width: 700px; display: inline-block;">Total Quantity Monitor</h1>
+                    <div class="settings-icon" onclick="showEditButton()" title="Settings">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                            <path d="M19.14,12.94c0.04-0.31,0.06-0.63,0.06-0.94c0-0.31-0.02-0.63-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.37,4.8,11.69,4.8,12s0.02,0.63,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                        </svg>
+                    </div>
+
+                    <!-- Settings Icon and Edit Menu -->
+                    <div class="edit-menu-container">
+                        
+                        <div class="edit-btn" id="editBtn" onclick="toggleEditDropdown()">Edit</div>
+                        <div class="edit-dropdown" id="editDropdown">
+                            <div class="edit-dropdown-item" onclick="openTitleEditModal()">TITLE</div>
+                            <div class="edit-dropdown-item" onclick="openSubColumnEditModal()">SUB COLUMN</div>
+                            <div class="edit-dropdown-item" onclick="openColumnEditModal()">COLUMN</div>
+                            <div class="edit-dropdown-item" onclick="openKittingSettingsModal()">ROWS</div>
+                            <div class="edit-dropdown-item" onclick="openActionButtonEditModal()">ACTION BUTTON</div>
+                            <div class="edit-dropdown-item" onclick="openRefKittingModal()">REF KITTING MTLS</div>
+                        </div>
+                    </div>
+
+                    <br><br>
+                        <!-- Left Side: Main Material Table (SS1) -->
+                        <div class="main-table-section">
+                            <table class="data-table" id="materialTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30px;"></th>
+                                        <th style="width: 80px;">KITTING MTLS</th>
+                                        <th style="min-width: 450px;">MTRL DESC</th>
+                                        <th style="width: 200px;">MATERIAL CODE</th>
+                                        <th style="width: 60px;">QTY</th>
+                                        <th style="width: 200px;">SCAN MATERIAL</th>
+                                        <th style="width: 200px;">LOT NO</th>
+                                        <th style="width: 60px;">QTY</th>
+                                        <th style="width: 80px;">REM QTY</th>
+                                        <th style="width: 50px;">GOOD</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableBody">
+                                    <!-- Rows will be generated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+
+
+
+
+
+
+
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveTitle()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+
+
+
+
+
+    <dialog id="totalQuantityMonitor">
+        <form method="dialog">
+            <h1 style="width: 700px; display: inline-block;">Total Quantity Monitor</h1>
+            <div class="settings-icon" onclick="showEditButton()" title="Settings">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M19.14,12.94c0.04-0.31,0.06-0.63,0.06-0.94c0-0.31-0.02-0.63-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.37,4.8,11.69,4.8,12s0.02,0.63,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                </svg>
+            </div>
+
+            <!-- Settings Icon and Edit Menu -->
+            <div class="edit-menu-container">
+                
+                <div class="edit-btn" id="editBtn" onclick="toggleEditDropdown()">Edit</div>
+                <div class="edit-dropdown" id="editDropdown">
+                    <div class="edit-dropdown-item" onclick="openTitleEditModal()">TITLE</div>
+                    <div class="edit-dropdown-item" onclick="openSubColumnEditModal()">SUB COLUMN</div>
+                    <div class="edit-dropdown-item" onclick="openColumnEditModal()">COLUMN</div>
+                    <div class="edit-dropdown-item" onclick="openKittingSettingsModal()">ROWS</div>
+                    <div class="edit-dropdown-item" onclick="openActionButtonEditModal()">ACTION BUTTON</div>
+                    <div class="edit-dropdown-item" onclick="openRefKittingModal()">REF KITTING MTLS</div>
+                </div>
+            </div>
+
+            <br><br>
+                <!-- Left Side: Main Material Table (SS1) -->
+                <div class="main-table-section">
+                    <table class="data-table" id="materialTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;"></th>
+                                <th style="width: 80px;">KITTING MTLS</th>
+                                <th style="min-width: 450px;">MTRL DESC</th>
+                                <th style="width: 200px;">MATERIAL CODE</th>
+                                <th style="width: 60px;">QTY</th>
+                                <th style="width: 200px;">SCAN MATERIAL</th>
+                                <th style="width: 200px;">LOT NO</th>
+                                <th style="width: 60px;">QTY</th>
+                                <th style="width: 80px;">REM QTY</th>
+                                <th style="width: 50px;">GOOD</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Rows will be generated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            <button class="action-btn">Close</button>
+        </form>
+    </dialog>
+
+    <div class="button-row">
+        <button class="action-btn" onclick="deleteData()">Delete</button>
+        <button class="action-btn" onclick="goToMainMenu()">Main Menu</button>
+        <button class="action-btn" id="submitBtn" onclick="submitData()" disabled>Submit</button>
+    </div>
+
+    <!-- Model Code Selection Modal -->
+    <div class="modal fade" id="modelCodeModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Select Model Code</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="search-box">
+                        <input type="text" class="form-control" id="modelSearchInput" placeholder="Search model code..." oninput="filterModelCodes()">
+                    </div>
+                    <div class="modal-model-list" id="modelCodeList">
+                        <!-- Model codes will be listed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div class="modal fade" id="errorModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header bg-danger text-white" style="border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Error</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 30px; text-align: center;">
+                    <p id="errorMessage" style="font-size: 18px; margin: 0;"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kitting Materials Settings Modal -->
+    <div class="modal fade" id="kittingSettingsModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Kitting Materials</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px; max-height: 500px; overflow-y: auto;">
+                    <div id="kittingEditList"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" onclick="addKittingRows()" style="margin-right: auto;">+ Add Row</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveKittingMaterials()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Title Edit Modal -->
+    <div class="modal fade" id="titleEditModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px; z-index: 300;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Title</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Page Title:</label>
+                        <input type="text" class="form-control" id="editTitleInput" placeholder="Enter page title">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveTitle()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sub Column Edit Modal -->
+    <div class="modal fade" id="subColumnEditModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Sub Column Labels</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Label 1:</label>
+                        <input type="text" class="form-control" id="editSubCol1" placeholder="Job Order #:">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Label 2:</label>
+                        <input type="text" class="form-control" id="editSubCol2" placeholder="Model Code:">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Label 3:</label>
+                        <input type="text" class="form-control" id="editSubCol3" placeholder="Quantity:">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveSubColumns()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Button Edit Modal -->
+    <div class="modal fade" id="actionButtonEditModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Action Buttons</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Button 1:</label>
+                        <input type="text" class="form-control" id="editActionBtn1" placeholder="Delete">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Button 2:</label>
+                        <input type="text" class="form-control" id="editActionBtn2" placeholder="Main Menu">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Button 3:</label>
+                        <input type="text" class="form-control" id="editActionBtn3" placeholder="Submit">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveActionButtons()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Column Edit Modal -->
+    <div class="modal fade" id="columnEditModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">Edit Column Headers</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 1:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol1" placeholder="KITTING MTLS">
+                                <input type="number" class="form-control" id="editColLen1" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(1)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 2:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol2" placeholder="MTRL DESC">
+                                <input type="number" class="form-control" id="editColLen2" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(2)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 3:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol3" placeholder="MATERIAL CODE">
+                                <input type="number" class="form-control" id="editColLen3" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(3)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 4:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol4" placeholder="QTY">
+                                <input type="number" class="form-control" id="editColLen4" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(4)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 5:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol5" placeholder="SCAN MATERIAL">
+                                <input type="number" class="form-control" id="editColLen5" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(5)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 6:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol6" placeholder="LOT NO">
+                                <input type="number" class="form-control" id="editColLen6" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(6)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 7:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol7" placeholder="QTY">
+                                <input type="number" class="form-control" id="editColLen7" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(7)">
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Column 8:</label>
+                            <div class="d-flex gap-2">
+                                <input type="text" class="form-control" id="editCol8" placeholder="GOOD">
+                                <input type="number" class="form-control" id="editColLen8" placeholder="Length" style="width: 90px;" min="30" max="800" oninput="applyColumnLength(8)">
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-2">Length values are in pixels. Changes apply automatically.</p>
+                    
+                    <!-- Add Column Section -->
+                    <div class="d-flex align-items-center gap-2 mt-3 pt-3 border-top">
+                        <select class="form-select" id="addColumnSelect" style="width: 200px;">
+                            <option value="">Select column to add...</option>
+                            <option value="REF KITTING MTLS">REF KITTING MTLS</option>
+                            <option value="MATERIAL DESCRIPTION">MATERIAL DESCRIPTION</option>
+                            <option value="JOB MATERIAL">JOB MATERIAL</option>
+                            <option value="QTY">QTY</option>
+                            <option value="SCAN MATERIAL">SCAN MATERIAL</option>
+                            <option value="LOT NO">LOT NO</option>
+                            <option value="GOOD">GOOD</option>
+                            <option value="REMARKS">REMARKS</option>
+                            <option value="STATUS">STATUS</option>
+                            <option value="DATE">DATE</option>
+                        </select>
+                        <button type="button" class="btn btn-success" onclick="addColumn()" style="background: #28a745; border-color: #28a745;">
+                            <i class="bi bi-plus-lg"></i> Add Column
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveColumns()" style="background: #9370db; border-color: #9370db;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- REF KITTING MTLS Modal -->
+    <div class="modal fade" id="refKittingModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="border-radius: 15px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, #9370db 0%, #7b5fc4 100%); color: white; border-radius: 15px 15px 0 0;">
+                    <h5 class="modal-title">REF KITTING MTLS Format</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <p class="text-muted">Select the format for KITTING MTLS column:</p>
+                    <div class="d-grid gap-3">
+                        <button type="button" class="btn btn-outline-primary btn-lg" onclick="setRefKittingFormat('text')" style="text-align: left; padding: 15px 20px;">
+                            <strong>TEXT</strong><br>
+                            <small class="text-muted">Example: FRAME ZAM, FRAME LEAD, SPACER</small>
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-lg" onclick="setRefKittingFormat('text_and_num')" style="text-align: left; padding: 15px 20px;">
+                            <strong>TEXT AND NUM</strong><br>
+                            <small class="text-muted">Example: <b>FMB</b>3270905, <b>CG</b>00300401-02A</small>
+                        </button>
+                    </div>
+                    <div class="mt-3 p-3 bg-light rounded" id="currentFormatDisplay">
+                        <small><strong>Current Format:</strong> <span id="currentFormatText">TEXT</span></small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dialog = document.getElementById('totalQuantityMonitor');            
+        // document.getElementById('totalQuantityMonitorButton').onclick = () => {
+            // dialog.showModal();
+            // Start auto-refresh when dialog opens
+            // startTotalQuantityMonitorAutoRefresh();
+        // };
+        
+        // Auto-refresh interval for Total Quantity Monitor
+        let totalQtyMonitorInterval = null;
+        
+        function startTotalQuantityMonitorAutoRefresh() {
+            // Clear any existing interval
+            if (totalQtyMonitorInterval) {
+                clearInterval(totalQtyMonitorInterval);
+            }
+            
+            // Refresh immediately
+            refreshTotalQuantityMonitor();
+            
+            // Then refresh every 3 seconds
+            totalQtyMonitorInterval = setInterval(refreshTotalQuantityMonitor, 3000);
+        }
+        
+        function stopTotalQuantityMonitorAutoRefresh() {
+            if (totalQtyMonitorInterval) {
+                clearInterval(totalQtyMonitorInterval);
+                totalQtyMonitorInterval = null;
+            }
+        }
+        
+        function refreshTotalQuantityMonitor() {
+            // Fetch all data from MAIN_DB and update the table
+            fetch('/api/get_all_main_db')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        updateTotalQuantityMonitorTable(data.data);
+                    }
+                })
+                .catch(e => console.log('Error refreshing Total Quantity Monitor:', e));
+        }
+        
+        function updateTotalQuantityMonitorTable(records) {
+            let hasInsufficientQty = false;
+            
+            // Group records by job_order and row_no
+            records.forEach(record => {
+                const rowNo = record.row_no;
+                const qtyUnit = parseInt(record.qty_unit) || 0;
+                const remainingQty = parseInt(record.remaining_qty) || 0;
+                
+                // Update material description
+                const materialInput = document.getElementById('material_' + rowNo);
+                if (materialInput) {
+                    materialInput.value = record.material_description || '';
+                }
+                
+                // Update scan material
+                const scanMaterialInput = document.getElementById('scanmaterial_' + rowNo);
+                if (scanMaterialInput) {
+                    scanMaterialInput.value = record.scan_material || '';
+                }
+                
+                // Update lot no
+                const lotNoInput = document.getElementById('lot_' + rowNo);
+                if (lotNoInput) {
+                    lotNoInput.value = record.lot_no || '';
+                }
+                
+                // Update qty_unit
+                const qty1Input = document.getElementById('qty1_' + rowNo);
+                if (qty1Input) {
+                    qty1Input.value = record.qty_unit || '';
+                }
+                
+                // Update remaining_qty
+                const remainingQtyInput = document.getElementById('remaining_qty_' + rowNo);
+                if (remainingQtyInput) {
+                    remainingQtyInput.value = record.remaining_qty || '';
+                }
+                
+                // Check if REM QTY < QTY (insufficient quantity)
+                // Only check if remaining_qty has a valid value (not empty)
+                const tableRow = document.querySelector(`#tableBody tr:nth-child(${rowNo})`);
+                const hasValidRemQty = record.remaining_qty !== null && record.remaining_qty !== undefined && record.remaining_qty !== '';
+                
+                if (tableRow && qtyUnit > 0 && hasValidRemQty && remainingQty < qtyUnit) {
+                    // Check if this problematic row has been resolved (new lot scanned)
+                    const newLotInput = document.getElementById('newlot_' + rowNo);
+                    const newGoodCheckbox = document.getElementById('newgood_' + rowNo);
+                    const isResolved = newLotInput && newLotInput.value && newGoodCheckbox && newGoodCheckbox.checked;
+                    
+                    if (!isResolved) {
+                        hasInsufficientQty = true;
+                    }
+                    
+                    // Paint the row red (still show it as problematic visually)
+                    tableRow.style.backgroundColor = '#ffcccc';
+                    tableRow.classList.add('insufficient-qty-row');
+                    
+                    // Check if we need to insert a new row for new LOT NO
+                    checkAndInsertNewLotRow(rowNo, record);
+                } else if (tableRow) {
+                    // Reset row color if quantity is sufficient
+                    tableRow.style.backgroundColor = '';
+                    tableRow.classList.remove('insufficient-qty-row');
+                }
+            });
+            
+            // Update Total Quantity Monitor button color
+            const monitorBtn = document.getElementById('totalQuantityMonitorButton');
+            if (hasInsufficientQty) {
+                monitorBtn.style.backgroundColor = '#ff4444';
+                monitorBtn.style.color = 'white';
+                monitorBtn.style.borderColor = '#cc0000';
+            } else {
+                monitorBtn.style.backgroundColor = '';
+                monitorBtn.style.color = '';
+                monitorBtn.style.borderColor = '';
+            }
+        }
+        
+        // Track which problematic rows have been scanned (for second scan logic)
+        let problematicRowsScanned = {};
+        
+        function checkAndInsertNewLotRow(rowNo, record) {
+            const tbody = document.getElementById('tableBody');
+            const existingRow = document.querySelector(`#tableBody tr:nth-child(${rowNo})`);
+            const nextRowId = `newlotrow_${rowNo}`;
+            
+            // Check if new lot row already exists
+            if (document.getElementById(nextRowId)) {
+                return; // Already inserted
+            }
+            
+            // Get REF KITTING MTLS from the original row
+            const kittingMtls = document.getElementById('kitting_' + rowNo)?.textContent || '';
+            // Get MATERIAL CODE from the original row
+            const materialCode = document.getElementById('materialcode_' + rowNo)?.value || record.material_code || '';
+            
+            // Mark this row as having a new lot row (for scan logic) - only if not already tracked
+            if (!problematicRowsScanned[rowNo]) {
+                problematicRowsScanned[rowNo] = {
+                    materialCode: materialCode,
+                    scanned: false, // Will be true after first scan
+                    qtyUnit: parseInt(record.qty_unit) || 0,
+                    remainingQty: parseInt(record.remaining_qty) || 0
+                };
+                console.log('checkAndInsertNewLotRow: Registered NEW problematic row ' + rowNo + ' with materialCode: ' + materialCode);
+            } else {
+                console.log('checkAndInsertNewLotRow: Row ' + rowNo + ' already tracked, scanned=' + problematicRowsScanned[rowNo].scanned);
+            }
+            
+            // Create new row for scanning new LOT NO in Total Quantity Monitor
+            const newRow = document.createElement('tr');
+            newRow.id = `newlotrow_${rowNo}`; // Changed from newlot_ to newlotrow_ to avoid conflict with input
+            newRow.style.backgroundColor = '#ffffcc'; // Light yellow for new lot row
+            newRow.innerHTML = `
+                <td class="row-num">${rowNo}+</td>
+                <td id="newkitting_${rowNo}">${kittingMtls}</td>
+                <td><input type="text" value="${record.material_description || ''}" class="mtrl-desc" readonly></td>
+                <td><input type="text" id="newmaterialcode_${rowNo}" value="${materialCode}" class="material-code" readonly></td>
+                <td><input type="text" id="newqty1_${rowNo}" value="${record.qty_unit || ''}" readonly></td>
+                <td><input type="text" id="newscanmaterial_${rowNo}" placeholder="Scan new material..." readonly></td>
+                <td><input type="text" id="newlot_${rowNo}" placeholder="Scan new LOT NO..." readonly></td>
+                <td><input type="text" id="newqty_${rowNo}" readonly></td>
+                <td><input type="text" id="newremqty_${rowNo}" readonly></td>
+                <td id="newgood_cell_${rowNo}"><input type="checkbox" id="newgood_${rowNo}" disabled onchange="handleNewGoodChange(${rowNo})"></td>
+            `;
+            
+            // Insert after the problematic row in Total Quantity Monitor
+            if (existingRow && existingRow.nextSibling) {
+                tbody.insertBefore(newRow, existingRow.nextSibling);
+            } else if (existingRow) {
+                tbody.appendChild(newRow);
+            }
+            
+            // Also insert a new row in Kitting Summary after the problematic row
+            insertNewLotRowInKittingSummary(rowNo, record);
+        }
+        
+        function insertNewLotRowInKittingSummary(rowNo, record) {
+            const kittingSummaryBody = document.getElementById('kittingSummaryBody');
+            if (!kittingSummaryBody) {
+                console.log('Kitting Summary body not found');
+                return;
+            }
+            
+            const summaryRowId = `kitting_newlot_${rowNo}`;
+            
+            // Check if new lot row already exists in Kitting Summary
+            if (document.getElementById(summaryRowId)) {
+                return; // Already inserted
+            }
+            
+            // Find the row in Kitting Summary that corresponds to the problematic row
+            // Use row index (rowNo - 1) since Kitting Summary rows are in same order as Total Quantity Monitor
+            const summaryRows = kittingSummaryBody.querySelectorAll('tr:not([id^="kitting_newlot_"])');
+            const targetRowIndex = rowNo - 1; // 0-indexed
+            
+            console.log('Looking for row ' + rowNo + ' in Kitting Summary, found ' + summaryRows.length + ' rows');
+            
+            // Create new row for Kitting Summary
+            const shortDesc = record.material_description ? 
+                (record.material_description.length > 25 ? record.material_description.substring(0, 25) + '...' : record.material_description) : '';
+            const qtyUnitInt = record.qty_unit ? Math.round(parseFloat(record.qty_unit)) : '';
+            
+            const newSummaryRow = document.createElement('tr');
+            newSummaryRow.id = summaryRowId;
+            newSummaryRow.style.backgroundColor = '#ffffcc'; // Light yellow for new lot row
+            newSummaryRow.innerHTML = `
+                <td>${rowNo}</td>
+                <td title="${record.material_description || ''}">${shortDesc}</td>
+                <td>${qtyUnitInt}</td>
+                <td></td>
+                <td style="color: #999; font-style: italic;">New LOT...</td>
+                <td>${qtyUnitInt}</td>
+            `;
+            
+            // Insert after the problematic row in Kitting Summary
+            if (targetRowIndex >= 0 && targetRowIndex < summaryRows.length && summaryRows[targetRowIndex]) {
+                const targetRow = summaryRows[targetRowIndex];
+                // Paint the problematic row red in Kitting Summary
+                targetRow.style.backgroundColor = '#ffcccc';
+                
+                console.log('Inserting new lot row after row ' + rowNo + ' in Kitting Summary');
+                
+                if (targetRow.nextSibling) {
+                    kittingSummaryBody.insertBefore(newSummaryRow, targetRow.nextSibling);
+                } else {
+                    kittingSummaryBody.appendChild(newSummaryRow);
+                }
+            } else {
+                console.log('Target row not found in Kitting Summary for row ' + rowNo);
+            }
+        }
+        
+        // Stop auto-refresh when dialog closes
+        dialog.addEventListener('close', stopTotalQuantityMonitorAutoRefresh);
+    </script>
+
+    <script>
+        let isScanning = false;
+        let scanTimeout = null;
+        let refKittingFormat = 'text'; // Default format: 'text' or 'text_and_num'
+
+        // ==================== EDIT MENU FUNCTIONS ====================
+        function showEditButton() {
+            const editBtn = document.getElementById('editBtn');
+            const settingsIcon = document.querySelector('.settings-icon');
+            settingsIcon.style.display = 'none';
+            editBtn.style.display = 'block';
+        }
+
+        function toggleEditDropdown() {
+            const dropdown = document.getElementById('editDropdown');
+            dropdown.classList.toggle('show');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const container = document.querySelector('.edit-menu-container');
+            const dropdown = document.getElementById('editDropdown');
+            if (container && !container.contains(e.target)) {
+                dropdown.classList.remove('show');
+                // Reset to settings icon after a delay if dropdown is closed
+                const editBtn = document.getElementById('editBtn');
+                const settingsIcon = document.querySelector('.settings-icon');
+                if (editBtn.style.display === 'block') {
+                    setTimeout(() => {
+                        editBtn.style.display = 'none';
+                        settingsIcon.style.display = 'flex';
+                    }, 3000);
+                }
+            }
+        });
+
+        // ==================== TITLE EDIT FUNCTIONS ====================
+        function openTitleEditModal() {
+            document.getElementById('editDropdown').classList.remove('show');
+            const currentTitle = document.querySelector('.main-title').textContent;
+            document.getElementById('editTitleInput').value = currentTitle;
+            const modal = new bootstrap.Modal(document.getElementById('titleEditModal'));
+            modal.show();
+        }
+
+        function openTotalQuantityMonitorModal() {
+            const modal = new bootstrap.Modal(document.getElementById('totalQuantityMonitorModal'));
+            modal.show();
+        }
+
+        function saveTitle() {
+            const newTitle = document.getElementById('editTitleInput').value.trim();
+            if (newTitle) {
+                document.querySelector('.main-title').textContent = newTitle;
+                
+                // Save to server for persistence
+                fetch('/api/save_page_title', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ title: newTitle })
+                }).then(r => r.json()).then(data => {
+                    bootstrap.Modal.getInstance(document.getElementById('titleEditModal')).hide();
+                    if (data.success) {
+                        alert('Title saved successfully!');
+                    } else {
+                        alert('Error saving: ' + data.error);
+                    }
+                }).catch(e => {
+                    bootstrap.Modal.getInstance(document.getElementById('titleEditModal')).hide();
+                    alert('Title saved locally!');
+                });
+            }
+        }
+
+        // ==================== SUB COLUMN EDIT FUNCTIONS ====================
+        function openSubColumnEditModal() {
+            document.getElementById('editDropdown').classList.remove('show');
+            const labels = document.querySelectorAll('.header-label');
+            document.getElementById('editSubCol1').value = labels[0] ? labels[0].textContent : '';
+            document.getElementById('editSubCol2').value = labels[1] ? labels[1].textContent : '';
+            document.getElementById('editSubCol3').value = labels[2] ? labels[2].textContent : '';
+            const modal = new bootstrap.Modal(document.getElementById('subColumnEditModal'));
+            modal.show();
+        }
+
+        function saveSubColumns() {
+            const labels = document.querySelectorAll('.header-label');
+            const val1 = document.getElementById('editSubCol1').value.trim();
+            const val2 = document.getElementById('editSubCol2').value.trim();
+            const val3 = document.getElementById('editSubCol3').value.trim();
+            if (labels[0] && val1) labels[0].textContent = val1;
+            if (labels[1] && val2) labels[1].textContent = val2;
+            if (labels[2] && val3) labels[2].textContent = val3;
+            
+            // Save to server for persistence
+            fetch('/api/save_sub_columns', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ sub_columns: [val1, val2, val3] })
+            }).then(r => r.json()).then(data => {
+                bootstrap.Modal.getInstance(document.getElementById('subColumnEditModal')).hide();
+                if (data.success) {
+                    alert('Sub column labels saved successfully!');
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            }).catch(e => {
+                bootstrap.Modal.getInstance(document.getElementById('subColumnEditModal')).hide();
+                alert('Sub column labels saved locally!');
+            });
+        }
+
+        // ==================== REF KITTING MTLS FUNCTIONS ====================
+        function openRefKittingModal() {
+            document.getElementById('editDropdown').classList.remove('show');
+            // Load current format setting
+            fetch('/api/get_ref_kitting_format').then(r => r.json()).then(data => {
+                if (data.success) {
+                    refKittingFormat = data.format || 'text';
+                    document.getElementById('currentFormatText').textContent = refKittingFormat === 'text' ? 'TEXT' : 'TEXT AND NUM';
+                }
+            }).catch(e => console.log('Using default format'));
+            const modal = new bootstrap.Modal(document.getElementById('refKittingModal'));
+            modal.show();
+        }
+
+        function setRefKittingFormat(format) {
+            refKittingFormat = format;
+            document.getElementById('currentFormatText').textContent = format === 'text' ? 'TEXT' : 'TEXT AND NUM';
+            
+            // Save to server
+            fetch('/api/save_ref_kitting_format', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ format: format })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('refKittingModal')).hide();
+                    alert('REF KITTING MTLS format saved! The format will be applied when loading job order data.');
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            }).catch(e => {
+                bootstrap.Modal.getInstance(document.getElementById('refKittingModal')).hide();
+                alert('Format saved locally!');
+            });
+        }
+
+        // ==================== COLUMN EDIT FUNCTIONS ====================
+        function openColumnEditModal() {
+            document.getElementById('editDropdown').classList.remove('show');
+            const headers = document.querySelectorAll('.data-table thead th');
+            // Skip first column (row number), get columns 1-8
+            document.getElementById('editCol1').value = headers[1] ? headers[1].textContent : '';
+            document.getElementById('editCol2').value = headers[2] ? headers[2].textContent : '';
+            document.getElementById('editCol3').value = headers[3] ? headers[3].textContent : '';
+            document.getElementById('editCol4').value = headers[4] ? headers[4].textContent : '';
+            document.getElementById('editCol5').value = headers[5] ? headers[5].textContent : '';
+            document.getElementById('editCol6').value = headers[6] ? headers[6].textContent : '';
+            document.getElementById('editCol7').value = headers[7] ? headers[7].textContent : '';
+            document.getElementById('editCol8').value = headers[8] ? headers[8].textContent : '';
+            // Load current lengths from headers
+            for (let i = 1; i <= 8; i++) {
+                const header = headers[i];
+                const lenInput = document.getElementById('editColLen' + i);
+                if (header && lenInput) {
+                    let currentWidth = header.style.width || header.style.minWidth;
+                    if (!currentWidth) {
+                        currentWidth = window.getComputedStyle(header).width;
+                    }
+                    const width = parseInt(currentWidth) || '';
+                    lenInput.value = width;
+                }
+            }
+            const modal = new bootstrap.Modal(document.getElementById('columnEditModal'));
+            modal.show();
+        }
+
+        function applyColumnLength(colIndex) {
+            const lenInput = document.getElementById('editColLen' + colIndex);
+            const length = lenInput.value.trim();
+            const headers = document.querySelectorAll('.data-table thead th');
+            const header = headers[colIndex];
+            
+            if (header && length) {
+                header.style.width = length + 'px';
+                header.style.minWidth = length + 'px';
+            }
+        }
+
+        function addColumn() {
+            const select = document.getElementById('addColumnSelect');
+            const selectedValue = select.value;
+            
+            if (!selectedValue) {
+                alert('Please select a column to add');
+                return;
+            }
+            
+            // Find the first empty column input field
+            let emptyColIndex = -1;
+            for (let i = 1; i <= 8; i++) {
+                const colInput = document.getElementById('editCol' + i);
+                if (colInput && colInput.value.trim() === '') {
+                    emptyColIndex = i;
+                    break;
+                }
+            }
+            
+            if (emptyColIndex === -1) {
+                alert('All 8 columns are already filled. Please clear a column first to add a new one.');
+                return;
+            }
+            
+            // Set the selected value to the empty column
+            document.getElementById('editCol' + emptyColIndex).value = selectedValue;
+            document.getElementById('editColLen' + emptyColIndex).value = '150'; // Default length
+            
+            // Reset the dropdown
+            select.value = '';
+            
+            // Apply the column length immediately
+            applyColumnLength(emptyColIndex);
+            
+            alert('Column "' + selectedValue + '" added to Column ' + emptyColIndex);
+        }
+
+        function saveColumns() {
+            const headers = document.querySelectorAll('.data-table thead th');
+            const vals = [
+                document.getElementById('editCol1').value.trim(),
+                document.getElementById('editCol2').value.trim(),
+                document.getElementById('editCol3').value.trim(),
+                document.getElementById('editCol4').value.trim(),
+                document.getElementById('editCol5').value.trim(),
+                document.getElementById('editCol6').value.trim(),
+                document.getElementById('editCol7').value.trim(),
+                document.getElementById('editCol8').value.trim()
+            ];
+            const lengths = [
+                document.getElementById('editColLen1').value.trim(),
+                document.getElementById('editColLen2').value.trim(),
+                document.getElementById('editColLen3').value.trim(),
+                document.getElementById('editColLen4').value.trim(),
+                document.getElementById('editColLen5').value.trim(),
+                document.getElementById('editColLen6').value.trim(),
+                document.getElementById('editColLen7').value.trim(),
+                document.getElementById('editColLen8').value.trim()
+            ];
+            for (let i = 0; i < 8; i++) {
+                if (headers[i + 1] && vals[i]) {
+                    headers[i + 1].textContent = vals[i];
+                }
+                if (headers[i + 1] && lengths[i]) {
+                    headers[i + 1].style.width = lengths[i] + 'px';
+                    headers[i + 1].style.minWidth = lengths[i] + 'px';
+                }
+            }
+            
+            // Save to server for persistence
+            fetch('/api/save_column_headers', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ column_headers: vals, column_lengths: lengths })
+            }).then(r => r.json()).then(data => {
+                bootstrap.Modal.getInstance(document.getElementById('columnEditModal')).hide();
+                if (data.success) {
+                    alert('Column headers saved successfully!');
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            }).catch(e => {
+                bootstrap.Modal.getInstance(document.getElementById('columnEditModal')).hide();
+                alert('Column headers saved locally!');
+            });
+        }
+
+        // ==================== ACTION BUTTON EDIT FUNCTIONS ====================
+        function openActionButtonEditModal() {
+            document.getElementById('editDropdown').classList.remove('show');
+            const buttons = document.querySelectorAll('.button-row .action-btn');
+            document.getElementById('editActionBtn1').value = buttons[0] ? buttons[0].textContent : '';
+            document.getElementById('editActionBtn2').value = buttons[1] ? buttons[1].textContent : '';
+            document.getElementById('editActionBtn3').value = buttons[2] ? buttons[2].textContent : '';
+            const modal = new bootstrap.Modal(document.getElementById('actionButtonEditModal'));
+            modal.show();
+        }
+
+        function saveActionButtons() {
+            const buttons = document.querySelectorAll('.button-row .action-btn');
+            const val1 = document.getElementById('editActionBtn1').value.trim();
+            const val2 = document.getElementById('editActionBtn2').value.trim();
+            const val3 = document.getElementById('editActionBtn3').value.trim();
+            if (buttons[0] && val1) buttons[0].textContent = val1;
+            if (buttons[1] && val2) buttons[1].textContent = val2;
+            if (buttons[2] && val3) buttons[2].textContent = val3;
+            
+            // Save to server for persistence
+            fetch('/api/save_action_buttons', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action_buttons: [val1, val2, val3] })
+            }).then(r => r.json()).then(data => {
+                bootstrap.Modal.getInstance(document.getElementById('actionButtonEditModal')).hide();
+                if (data.success) {
+                    alert('Action buttons saved successfully!');
+                } else {
+                    alert('Error saving: ' + data.error);
+                }
+            }).catch(e => {
+                bootstrap.Modal.getInstance(document.getElementById('actionButtonEditModal')).hide();
+                alert('Action buttons saved locally!');
+            });
+        }
+
+        function handleJobOrderKeydown(event) {
+            const input = document.getElementById('jobOrderInput');
+            
+            // <!------ codeblock limiting character count ------!>
+            // If already at 10 characters, block any additional character input
+            // if (input.value.length >= 10) {
+            //     // Allow backspace, delete, arrow keys, tab only if not scanning
+            //     const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+            //     if (!allowedKeys.includes(event.key)) {
+            //         event.preventDefault();
+            //         event.stopPropagation();
+            //         return false;
+            //     }
+            // }
+            // <!------ codeblock limiting character count ------!>
+            
+            // Detect barcode scanner (rapid input)
+            if (event.key.length === 1) {
+                isScanning = true;
+                clearTimeout(scanTimeout);
+                scanTimeout = setTimeout(() => {
+                    isScanning = false;
+                    // Trigger carltrial after scan completes (allow any length job order)
+                    if (input.value.length >= 10) {
+                        carltrial();
+                    }
+                }, 100);
+            }
+            
+            // Block Enter and Tab during scanning to prevent focus change
+            if (isScanning && (event.key === 'Enter' || event.key === 'Tab')) {
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+        }
+        // <!------ codeblock limiting character count ------!>
+        // function limitJobOrder() {
+        //     const input = document.getElementById('jobOrderInput');
+        //     // Truncate to 10 characters only
+        //     if (input.value.length > 10) {
+        //         input.value = input.value.substring(0, 10);
+        //     }
+        // }
+        // <!------ codeblock limiting character count ------!>
+
+        function carltrial() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            
+            // Ensure only 10 characters
+            // <!------ codeblock limiting character count ------!>
+            // const truncatedJobOrder = jobOrder.substring(0, 10);
+            // <!------ codeblock limiting character count ------!>
+            const truncatedJobOrder = document.getElementById('jobOrderInput').value
+            // document.getElementById('jobOrderInput').value = truncatedJobOrder;
+            
+            if (!truncatedJobOrder) {
+                return;
+            }
+
+            // Quantity and Suffic Getter
+            
+
+            fetch("/getQuantityAndSuffix", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ job_order_raw: jobOrder })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Set the Suffix field (SS2) - 4 digits after job order (positions 10-14)
+                    // Pad suffix to 4 digits with leading zeros
+                    const suffixValue = data.suffix || '';
+                    const paddedSuffix = suffixValue.toString().padStart(4, '0');
+                    document.getElementById('jobOrderSuffix').value = paddedSuffix;
+                    console.log('Suffix set to: ' + (data.suffix || '(empty)'));
+                    
+                    // Set the Quantity field (SS3) - qty_released from database
+                    document.getElementById('quantityInput').value = data.quantity || '';
+                    console.log('Quantity set to: ' + (data.quantity || '(empty)'));
+                    
+                    // Update SS1 (Job Order) to show only first 10 digits
+                    document.getElementById('jobOrderInput').value = jobOrder.substring(0, 10);
+                    console.log('Job Order truncated to: ' + jobOrder.substring(0, 10));
+                }
+            })
+            .catch(e => console.log('Error getting quantity and suffix:', e))
+
+
+
+            
+            // Clear old MAIN_DB data for this job order first
+            fetch('/api/clear_main_db', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ job_order: truncatedJobOrder})
+            }).then(r => r.json()).then(clearData => {
+                console.log('Cleared MAIN_DB:', clearData.message);
+            }).catch(e => console.log('Error clearing MAIN_DB:', e));
+            
+            // Call API with job order and get item (4th column) for Model Code
+            fetch('/getToriSql?job_order=' + encodeURIComponent(truncatedJobOrder))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Set the Model Code from the 4th column (item)
+                        // Clear previous value first, then set new value if available
+                        const modelCode = data.item || '';
+                        document.getElementById('modelCodeInput').value = modelCode;
+                        console.log('Model Code set to: ' + (modelCode || '(empty - no data for this job order)'));
+                        
+                        // Determine row count based on model code
+                        // If model code is in "Models with Filter Bushing" list, display 26 rows
+                        // Otherwise display 25 rows (without Filter Bushing)
+                        const modelCodeUpper = modelCode.toUpperCase();
+                        const isInList = modelsWithoutBushing.some(code => code.toUpperCase() === modelCodeUpper);
+                        const rowCount = isInList ? 26 : 25;
+                        console.log('Row count: ' + rowCount + ' (Model ' + (isInList ? 'WITH' : 'WITHOUT') + ' Filter Bushing)');
+                        console.log('Models with Filter Bushing list:', modelsWithoutBushing);
+                        
+                        // Always clear and regenerate table with correct row count
+                        generateTableRows(rowCount);
+                        
+                        // Populate MTRL DESC and MATERIAL CODE columns with matched materials
+                        if (data.materials) {
+                            console.log('Materials received:', data.materials);
+                            // Wait a bit for table rows to be generated
+                            setTimeout(() => {
+                                for (const [rowNo, materialData] of Object.entries(data.materials)) {
+                                    // KITTING MTLS column (kitting_name based on format setting)
+                                    if (materialData.kitting_name) {
+                                        // Update the KITTING_MATERIALS object so it shows in the table
+                                        KITTING_MATERIALS[rowNo] = materialData.kitting_name;
+                                        // Also update the table cell directly
+                                        const kittingCell = document.querySelector(`.data-table tbody tr:nth-child(${rowNo}) td:nth-child(2)`);
+                                        if (kittingCell) {
+                                            kittingCell.textContent = materialData.kitting_name;
+                                        }
+                                        console.log('Row ' + rowNo + ' KITTING MTLS: ' + materialData.kitting_name);
+                                    }
+                                    // MTRL DESC column (material description)
+                                    const materialInput = document.getElementById('material_' + rowNo);
+                                    if (materialInput) {
+                                        materialInput.value = materialData.description || materialData;
+                                        console.log('Row ' + rowNo + ' MTRL DESC: ' + (materialData.description || materialData));
+                                    }
+                                    // MATERIAL CODE column
+                                    const materialCodeInput = document.getElementById('materialcode_' + rowNo);
+                                    if (materialCodeInput && materialData.code) {
+                                        materialCodeInput.value = materialData.code;
+                                        console.log('Row ' + rowNo + ' MATERIAL CODE: ' + materialData.code);
+                                    }
+                                    // QTY column (SS1) - matl_qty from 10th column
+                                    const qty1Input = document.getElementById('qty1_' + rowNo);
+                                    if (qty1Input && materialData.qty) {
+                                        qty1Input.value = materialData.qty;
+                                        console.log('Row ' + rowNo + ' QTY (SS1): ' + materialData.qty);
+                                    }
+                                }
+                                // Check all good status after populating
+                                checkAllGood();
+                                
+                                // Update kitting summary
+                                updateKittingSummary();
+                                
+                                // Load kitting info for this job order
+                                loadNextKittingNo();
+                                loadKittingHistory();
+                                loadRemainingQtyFromMainDb();
+                                
+                                // Load kitting summary from MySQL (will overwrite if data exists)
+                                setTimeout(() => {
+                                    loadKittingSummaryFromDb();
+                                }, 300);
+                                
+                                // Only save state to localStorage (NOT to MAIN_DB yet)
+                                // MAIN_DB should only be saved when materials are actually scanned
+                                setTimeout(() => {
+                                    saveStateToLocalStorage();
+                                }, 200);
+                                
+                                // Auto-focus to "Scan here" input after MATERIAL CODE is populated
+                                const scanInput = document.getElementById('scanMtlsInput');
+                                if (scanInput) {
+                                    scanInput.focus();
+                                    console.log('Auto-focused to Scan here input');
+                                }
+                            }, 100);
+                        }
+                    } else {
+                        console.log('Error: ', data.error || 'Unknown');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error fetching job order data:', err);
+                });
+        }
+    </script>
+
+    <script>
+        let currentRowCount = 25; // Default 25 rows
+        let modelsWithoutBushing = ['80HP40073P', '80HP40701P', '80HP40750P', '60HP40004P', '60HP40701P']; // Models WITH Filter Bushing (26 rows)
+        let allModelCodes = []; // Will be loaded from server
+        let joDbConfigured = false;
+        let materialsConfigured = false;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load ref_kitting_format FIRST, then generate table
+            fetch('/api/get_ref_kitting_format').then(r => r.json()).then(data => {
+                if (data.success && data.format) {
+                    refKittingFormat = data.format;
+                }
+            }).catch(e => console.log('Using default format')).finally(() => {
+                // Now generate table with correct format
+                loadKittingMaterials();
+                generateTableRows(25);
+                
+                // Check MySQL first - only restore from localStorage if MySQL has data
+                setTimeout(() => {
+                    checkMySQLBeforeRestore();
+                }, 200);
+            });
+            
+            loadSettings();
+            loadModelCodesFromServer();
+            loadSavedSubColumns();
+            loadSavedColumnHeaders();
+            loadSavedPageTitle();
+            loadSavedActionButtons();
+            
+            // Save state before page unload (browser close, refresh, navigate away)
+            window.addEventListener('beforeunload', function() {
+                saveStateToLocalStorage();
+            });
+        });
+        
+        function loadSavedSubColumns() {
+            fetch('/api/get_sub_columns').then(r => r.json()).then(data => {
+                if (data.success && data.sub_columns) {
+                    const labels = document.querySelectorAll('.header-label');
+                    if (labels[0] && data.sub_columns[0]) labels[0].textContent = data.sub_columns[0];
+                    if (labels[1] && data.sub_columns[1]) labels[1].textContent = data.sub_columns[1];
+                    if (labels[2] && data.sub_columns[2]) labels[2].textContent = data.sub_columns[2];
+                }
+            }).catch(e => console.log('Using default sub columns'));
+        }
+        
+        function loadSavedColumnHeaders() {
+            fetch('/api/get_column_headers').then(r => r.json()).then(data => {
+                if (data.success) {
+                    setTimeout(() => {
+                        const headers = document.querySelectorAll('.data-table thead th');
+                        // Load column headers
+                        if (data.column_headers) {
+                            for (let i = 0; i < data.column_headers.length && i < 8; i++) {
+                                if (headers[i + 1] && data.column_headers[i]) {
+                                    headers[i + 1].textContent = data.column_headers[i];
+                                }
+                            }
+                        }
+                        // Load column lengths
+                        if (data.column_lengths) {
+                            for (let i = 0; i < data.column_lengths.length && i < 8; i++) {
+                                if (headers[i + 1] && data.column_lengths[i]) {
+                                    headers[i + 1].style.width = data.column_lengths[i] + 'px';
+                                    headers[i + 1].style.minWidth = data.column_lengths[i] + 'px';
+                                }
+                            }
+                        }
+                    }, 100);
+                }
+            }).catch(e => console.log('Using default column headers'));
+        }
+        
+        function loadSavedPageTitle() {
+            fetch('/api/get_page_title').then(r => r.json()).then(data => {
+                if (data.success && data.title) {
+                    const titleElement = document.querySelector('.main-title');
+                    if (titleElement) titleElement.textContent = data.title;
+                }
+            }).catch(e => console.log('Using default page title'));
+        }
+        
+        function loadSavedActionButtons() {
+            fetch('/api/get_action_buttons').then(r => r.json()).then(data => {
+                if (data.success && data.action_buttons) {
+                    const buttons = document.querySelectorAll('.button-row .action-btn');
+                    if (buttons[0] && data.action_buttons[0]) buttons[0].textContent = data.action_buttons[0];
+                    if (buttons[1] && data.action_buttons[1]) buttons[1].textContent = data.action_buttons[1];
+                    if (buttons[2] && data.action_buttons[2]) buttons[2].textContent = data.action_buttons[2];
+                }
+            }).catch(e => console.log('Using default action buttons'));
+        }
+
+        function loadSettings() {
+            fetch('/api/get_settings').then(r => r.json()).then(data => {
+                if (data.success && data.settings) {
+                    joDbConfigured = !!(data.settings.jo_database && data.settings.jo_database.path);
+                    materialsConfigured = !!data.settings.materials_path;
+                    
+                    // Load ref_kitting_format and apply to table
+                    if (data.settings.ref_kitting_format) {
+                        refKittingFormat = data.settings.ref_kitting_format;
+                        // Regenerate table rows with correct format
+                        if (currentRowCount > 0) {
+                            applyRefKittingFormat();
+                        }
+                    }
+                }
+            }).catch(e => {
+                joDbConfigured = false;
+                materialsConfigured = false;
+            });
+        }
+        
+        // Apply the ref_kitting_format to the REF KITTING MTLS column
+        function applyRefKittingFormat() {
+            // If format is text_and_num, we need to show material codes
+            // This will be applied when data is loaded from job order scan
+            // For now, just update the KITTING_MATERIALS display based on format
+            for (let i = 1; i <= currentRowCount; i++) {
+                const cell = document.getElementById(`kitting_${i}`);
+                if (cell && refKittingFormat === 'text_and_num') {
+                    // The actual material code will be set when job order is scanned
+                    // For initial load, keep the text format but mark for update
+                }
+            }
+        }
+
+        function loadModelCodesFromServer() {
+            // Load models without bushing
+            fetch('/api/get_model_codes').then(r => r.json()).then(data => {
+                if (data.success && data.model_codes) {
+                    modelsWithoutBushing = data.model_codes;
+                }
+            });
+
+            // Load all available model codes (sample data - in real app, load from materials file)
+            fetch('/api/get_all_model_codes').then(r => r.json()).then(data => {
+                if (data.success && data.model_codes) {
+                    allModelCodes = data.model_codes;
+                }
+            }).catch(e => {
+                // Use sample data if API not available
+                allModelCodes = [
+                    '60CAT0211P', '60CAT0212P', '60CAT0213P', '60CAT0214P', '60CAT0215P',
+                    '60CAT0216P', '60CAT0217P', '60CAT0218P', '60CAT0219P', '60CAT0220P',
+                    '80CAT0301P', '80CAT0302P', '80CAT0303P', '80CAT0304P', '80CAT0305P'
+                ];
+            });
+        }
+
+        // Kitting material category names for each row (editable)
+        let KITTING_MATERIALS = {
+            1: 'Frame ZAM',
+            2: 'FRAME LEAD',
+            3: 'Spacer',
+            4: '2P',
+            5: 'P3P',
+            6: 'DF Block',
+            7: 'ROD',
+            8: 'Casing Block',
+            9: 'Partition Board',
+            10: 'L-Tube',
+            11: 'Hose Clip',
+            12: 'Switch Block',
+            13: 'Lead Bushing',
+            14: 'Ground wire',
+            15: 'V.C.R.',
+            16: 'Lower Housing',
+            17: 'Rubber Foot',
+            18: 'Power cord',
+            19: 'Partition Gasket',
+            20: 'Upper Housing',
+            21: 'Filter Cover',
+            22: 'Filter',
+            23: 'Sound Absorbing',
+            24: 'Manual',
+            25: 'L-hose set',
+            26: 'Filter Bushing'
+        };
+        let kittingRowCount = 26; // Track number of kitting rows in modal
+
+        // Load saved kitting materials from server on page load
+        function loadKittingMaterials() {
+            fetch('/api/get_kitting_materials').then(r => r.json()).then(data => {
+                if (data.success && data.kitting_materials) {
+                    KITTING_MATERIALS = data.kitting_materials;
+                    // Regenerate table if already loaded
+                    if (currentRowCount > 0) {
+                        generateTableRows(currentRowCount);
+                    }
+                }
+            }).catch(e => console.log('Using default kitting materials'));
+        }
+
+        // Open the kitting settings modal
+        function openKittingSettingsModal() {
+            const editList = document.getElementById('kittingEditList');
+            editList.innerHTML = '';
+            
+            // Determine how many rows to show (at least 25, or more if KITTING_MATERIALS has more)
+            kittingRowCount = Math.max(25, Object.keys(KITTING_MATERIALS).length);
+            
+            for (let i = 1; i <= kittingRowCount; i++) {
+                const div = document.createElement('div');
+                div.className = 'kitting-edit-row';
+                div.innerHTML = `
+                    <label>${i}</label>
+                    <input type="text" id="kitting_edit_${i}" value="${KITTING_MATERIALS[i] || ''}">
+                `;
+                editList.appendChild(div);
+            }
+            
+            const modal = new bootstrap.Modal(document.getElementById('kittingSettingsModal'));
+            modal.show();
+        }
+        
+        // Add one row to the kitting settings modal
+        function addKittingRows() {
+            const editList = document.getElementById('kittingEditList');
+            const newRowNum = kittingRowCount + 1;
+            
+            const div = document.createElement('div');
+            div.className = 'kitting-edit-row';
+            div.innerHTML = `
+                <label>${newRowNum}</label>
+                <input type="text" id="kitting_edit_${newRowNum}" value="${KITTING_MATERIALS[newRowNum] || ''}">
+            `;
+            editList.appendChild(div);
+            kittingRowCount += 1;
+        }
+
+        // Save kitting materials to server
+        function saveKittingMaterials() {
+            const newMaterials = {};
+            for (let i = 1; i <= kittingRowCount; i++) {
+                const input = document.getElementById('kitting_edit_' + i);
+                if (input && input.value.trim()) {
+                    newMaterials[i] = input.value.trim();
+                }
+            }
+            
+            fetch('/api/save_kitting_materials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ kitting_materials: newMaterials })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    KITTING_MATERIALS = newMaterials;
+                    generateTableRows(currentRowCount);
+                    bootstrap.Modal.getInstance(document.getElementById('kittingSettingsModal')).hide();
+                    alert('Kitting materials saved successfully!');
+                } else {
+                    alert('Error saving: ' + (data.error || 'Unknown error'));
+                }
+            }).catch(e => {
+                alert('Error saving kitting materials: ' + e);
+            });
+        }
+
+        function generateTableRows(count) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            for (let i = 1; i <= count; i++) {
+                const row = document.createElement('tr');
+                row.id = `row_${i}`; // Add row ID for hiding consumed rows
+                // If format is text_and_num, show empty until job order is scanned
+                // If format is text, show the KITTING_MATERIALS text
+                const kittingName = (refKittingFormat === 'text_and_num') ? '' : (KITTING_MATERIALS[i] || '');
+                row.innerHTML = `
+                    <td class="row-num">${i}</td>
+                    <td id="kitting_${i}">${kittingName}</td>
+                    <td><input type="text" id="material_${i}" class="mtrl-desc" onchange="checkAllGood()" readonly></td>
+                    <td><input type="text" id="materialcode_${i}" class="material-code" readonly></td>
+                    <td><input type="text" id="qty1_${i}" readonly></td>
+                    <td><input type="text" id="scanmaterial_${i}" readonly></td>
+                    <td><input type="text" id="lot_${i}" readonly></td>
+                    <td><input type="text" id="qty_${i}" readonly></td>
+                    <td><input type="text" id="remaining_qty_${i}" readonly></td>
+                    <td id="good_cell_${i}"><input type="checkbox" id="good_${i}" onchange="handleGoodChange(${i})"></td>
+                `;
+                tbody.appendChild(row);
+            }
+            currentRowCount = count;
+        }
+
+        // Handle scan input from START SCAN MTLS box
+        function handleScanInput(event) {
+            if (event.key === 'Enter') {
+                const scanInput = document.getElementById('scanMtlsInput');
+                const scannedValue = scanInput.value.trim();
+                
+                if (!scannedValue) return;
+                
+                // Split the scanned value by space
+                const parts = scannedValue.split(' ');
+                if (parts.length < 3) {
+                    alert('Invalid scan format. Expected: MATERIAL_CODE LOT_NO QTY');
+                    scanInput.value = '';
+                    return;
+                }
+                
+                const scannedMaterialCode = parts[0];
+                const scannedLotNo = parts[1];
+                const scannedQty = parts[2];
+                
+                // Check if this material code belongs to a problematic row (REM QTY < QTY)
+                let problematicRowNo = null;
+                console.log('Checking problematicRowsScanned:', JSON.stringify(problematicRowsScanned));
+                console.log('Scanned material code:', scannedMaterialCode);
+                
+                for (let rowNo in problematicRowsScanned) {
+                    console.log('Checking row ' + rowNo + ' with materialCode: ' + problematicRowsScanned[rowNo].materialCode);
+                    if (problematicRowsScanned[rowNo].materialCode === scannedMaterialCode) {
+                        problematicRowNo = parseInt(rowNo);
+                        console.log('Found match at row ' + problematicRowNo + ', scanned status: ' + problematicRowsScanned[rowNo].scanned);
+                        break;
+                    }
+                }
+                
+                // If this is a problematic material code
+                if (problematicRowNo !== null) {
+                    const rowData = problematicRowsScanned[problematicRowNo];
+                    console.log('Processing problematic row ' + problematicRowNo + ', scanned: ' + rowData.scanned);
+                    
+                    // For problematic rows, scan goes DIRECTLY to the new row (row 3+)
+                    // Old lot data already exists in MAIN_DB - no need to scan old lot
+                    // Only ONE scan needed - directly populate the new row
+                    
+                    // Populate the new inserted row (new Lot No) - row 3+
+                    const newScanMaterial = document.getElementById('newscanmaterial_' + problematicRowNo);
+                    const newLotNo = document.getElementById('newlot_' + problematicRowNo);
+                    const newQty = document.getElementById('newqty_' + problematicRowNo);
+                    const newGood = document.getElementById('newgood_' + problematicRowNo);
+                    
+                    // Calculate needed QTY: QTY - REM QTY (e.g., 6 - 2 = 4)
+                    const neededQty = rowData.qtyUnit - rowData.remainingQty;
+                    
+                    console.log('Scan for problematic row: qtyUnit=' + rowData.qtyUnit + ', remainingQty=' + rowData.remainingQty + ', neededQty=' + neededQty + ', scannedQty=' + scannedQty);
+                    
+                    // Total Quantity Monitor new row - use scannedQty (50) for QTY column
+                    console.log('Updating Total Quantity Monitor new row inputs:');
+                    console.log('  newScanMaterial element:', newScanMaterial);
+                    console.log('  newLotNo element:', newLotNo);
+                    console.log('  newQty element:', newQty);
+                    
+                    if (newScanMaterial) {
+                        newScanMaterial.value = scannedMaterialCode;
+                        newScanMaterial.placeholder = ''; // Clear placeholder
+                        console.log('  Set newScanMaterial.value to:', scannedMaterialCode);
+                    }
+                    if (newLotNo) {
+                        newLotNo.value = scannedLotNo;
+                        newLotNo.placeholder = ''; // Clear placeholder
+                        console.log('  Set newLotNo.value to:', scannedLotNo);
+                    }
+                    if (newQty) {
+                        newQty.value = scannedQty; // Use actual scannedQty (50) for Total Quantity Monitor
+                        console.log('  Set newQty.value to:', scannedQty);
+                    }
+                    
+                    // Calculate and set REM QTY for new row: scannedQty - neededQty (e.g., 50 - 4 = 46)
+                    const newRemQty = document.getElementById('newremqty_' + problematicRowNo);
+                    const newRemQtyValue = parseInt(scannedQty) - neededQty;
+                    if (newRemQty) {
+                        newRemQty.value = newRemQtyValue;
+                        console.log('  Set newRemQty.value to:', newRemQtyValue);
+                    }
+                    
+                    // Store the new REM QTY for later use
+                    problematicRowsScanned[problematicRowNo].newRemQty = newRemQtyValue;
+                    
+                    if (newGood) {
+                        newGood.disabled = false;
+                        newGood.checked = true;
+                        // Apply green styling to the GOOD cell
+                        handleNewGoodChange(problematicRowNo);
+                    }
+                    
+                    // Store the scanned data in the tracking object for updateKittingSummary to use
+                    problematicRowsScanned[problematicRowNo].newScanMaterial = scannedMaterialCode;
+                    problematicRowsScanned[problematicRowNo].newLotNo = scannedLotNo;
+                    problematicRowsScanned[problematicRowNo].newQty = neededQty; // Kitting Summary uses neededQty (4)
+                    problematicRowsScanned[problematicRowNo].newScannedQty = scannedQty; // Total Quantity Monitor uses scannedQty (50)
+                    
+                    // Mark as scanned
+                    problematicRowsScanned[problematicRowNo].scanned = true;
+                    
+                    // Update the Kitting Summary new lot row - QTY/Kit should be neededQty (4), not scannedQty (50)
+                    const kittingNewQty = document.getElementById('kitting_newqty_' + problematicRowNo);
+                    if (kittingNewQty) {
+                        kittingNewQty.textContent = neededQty;
+                    }
+                    
+                    // Update the Kitting Summary new lot row with LOT NO and SCAN MATERIAL
+                    // Columns: 1=#, 2=MTRL DESC, 3=QTY/Unit, 4=SCAN MTRL, 5=LOT NO, 6=QTY/Kit
+                    const kittingNewLotRow = document.getElementById('kitting_newlot_' + problematicRowNo);
+                    if (kittingNewLotRow) {
+                        const scanCell = kittingNewLotRow.querySelector('td:nth-child(4)');
+                        if (scanCell) {
+                            scanCell.textContent = scannedMaterialCode;
+                        }
+                        const lotCell = kittingNewLotRow.querySelector('td:nth-child(5)');
+                        if (lotCell) {
+                            lotCell.textContent = scannedLotNo;
+                            lotCell.style.color = '';
+                            lotCell.style.fontStyle = '';
+                        }
+                    }
+                    
+                    // Mark the old row as ready to be consumed (will be hidden after Kitting QR scan)
+                    // Do NOT hide row 3 yet - wait until Kitting QR code is scanned
+                    problematicRowsScanned[problematicRowNo].readyToConsume = true;
+                    
+                    console.log('Old row ' + problematicRowNo + ' marked ready to consume after Kitting QR scan');
+                    console.log('Scan for problematic row ' + problematicRowNo + ' (new Lot No): ' + scannedLotNo + ', neededQty: ' + neededQty + ', scannedQty: ' + scannedQty);
+                    
+                    // Clear the scan input for next scan
+                    scanInput.value = '';
+                    updateKittingSummary();
+                    checkCompleteButtonState();
+                    
+                    // Update Total Quantity Monitor button color - should turn normal after new lot is scanned
+                    updateTotalQuantityMonitorButtonColor();
+                    
+                    // Save to MAIN_DB after each material scan
+                    saveToMainDb();
+                    saveStateToLocalStorage(); // Auto-save state after problematic row scan
+                    return;
+                }
+                
+                // Normal scan logic - find matching row by MATERIAL CODE
+                let matchFound = false;
+                for (let i = 1; i <= currentRowCount; i++) {
+                    const materialCodeInput = document.getElementById('materialcode_' + i);
+                    if (materialCodeInput && materialCodeInput.value.trim() === scannedMaterialCode) {
+                        // Match found - populate SCAN MATERIAL, LOT NO, QTY
+                        document.getElementById('scanmaterial_' + i).value = scannedMaterialCode;
+                        document.getElementById('lot_' + i).value = scannedLotNo;
+                        document.getElementById('qty_' + i).value = scannedQty;
+                        
+                        // Auto-check GOOD checkbox
+                        const goodCheckbox = document.getElementById('good_' + i);
+                        goodCheckbox.checked = true;
+                        handleGoodChange(i);
+                        
+                        matchFound = true;
+                        console.log('Match found at row ' + i + ': ' + scannedMaterialCode);
+                        break;
+                    }
+                }
+                
+                if (!matchFound) {
+                    alert('Material code not found: ' + scannedMaterialCode);
+                }
+                
+                // Clear the scan input for next scan
+                scanInput.value = '';
+                updateKittingSummary();
+                checkCompleteButtonState();
+                
+                // Save to MAIN_DB after each material scan
+                if (matchFound) {
+                    saveToMainDb();
+                    saveStateToLocalStorage(); // Auto-save state after material scan
+                }
+            }
+        }
+
+        function handleGoodChange(row) {
+            const goodCheckbox = document.getElementById(`good_${row}`);
+            const goodCell = document.getElementById(`good_cell_${row}`);
+            
+            if (goodCheckbox.checked) {
+                goodCell.classList.add('good-cell');
+            } else {
+                goodCell.classList.remove('good-cell');
+            }
+            checkAllGood();
+        }
+        
+        // Handle GOOD checkbox change for new lot rows (row 3+)
+        function handleNewGoodChange(rowNo) {
+            const goodCheckbox = document.getElementById(`newgood_${rowNo}`);
+            const goodCell = document.getElementById(`newgood_cell_${rowNo}`);
+            
+            if (goodCheckbox && goodCell) {
+                if (goodCheckbox.checked) {
+                    goodCell.classList.add('good-cell');
+                } else {
+                    goodCell.classList.remove('good-cell');
+                }
+            }
+            checkAllGood();
+        }
+
+        function checkAllGood() {
+            const submitBtn = document.getElementById('submitBtn');
+            let allGood = true;
+            let hasAnyData = false;
+            
+            for (let i = 1; i <= currentRowCount; i++) {
+                const materialInput = document.getElementById(`material_${i}`);
+                const goodCheckbox = document.getElementById(`good_${i}`);
+                
+                // Check if row has material data
+                if (materialInput && materialInput.value.trim()) {
+                    hasAnyData = true;
+                    // If has data, must be checked as GOOD
+                    if (!goodCheckbox.checked) {
+                        allGood = false;
+                    }
+                }
+            }
+            
+            // Enable submit only if all materials with data are marked GOOD
+            if (hasAnyData && allGood) {
+                submitBtn.disabled = false;
+                submitBtn.classList.add('submit-enabled');
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.classList.remove('submit-enabled');
+            }
+        }
+
+        function blockLocalDb() {
+            // Block local database when cursor enters Job Order field
+            fetch('/blockLocalDb');
+        }
+
+        function openModelCodeModal() {
+            // No validation required - user can select model code without configuring materials path
+            renderModelCodeList();
+            new bootstrap.Modal(document.getElementById('modelCodeModal')).show();
+        }
+
+        function renderModelCodeList() {
+            const list = document.getElementById('modelCodeList');
+            const searchTerm = document.getElementById('modelSearchInput').value.toLowerCase();
+            
+            const filteredCodes = allModelCodes.filter(code => 
+                code.toLowerCase().includes(searchTerm)
+            );
+            
+            list.innerHTML = filteredCodes.map(code => `
+                <div class="model-item" onclick="selectModelCode('${code}')">${code}</div>
+            `).join('');
+        }
+
+        function filterModelCodes() {
+            renderModelCodeList();
+        }
+
+        function selectModelCode(code) {
+            document.getElementById('modelCodeInput').value = code;
+            bootstrap.Modal.getInstance(document.getElementById('modelCodeModal')).hide();
+            
+            // Generate 25 rows for the table
+            generateTableRows(25);
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            new bootstrap.Modal(document.getElementById('errorModal')).show();
+        }
+
+        function deleteData() {
+            if (confirm('Are you sure you want to delete all data?')) {
+                document.getElementById('jobOrderInput').value = '';
+                document.getElementById('modelCodeInput').value = '';
+                document.getElementById('quantityInput').value = '260';
+                generateTableRows(25);
+            }
+        }
+
+        function goToMainMenu() {
+            window.location.href = '/';
+        }
+
+        function submitData() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            const modelCode = document.getElementById('modelCodeInput').value;
+            
+            if (!jobOrder || !modelCode) {
+                showError('Please fill in Job Order and Model Code before submitting.');
+                return;
+            }
+            
+            // Collect all material data - MTRL DESC, MATERIAL CODE, MATL_QTY (SS1), SCAN MATERIAL, LOT NO, QTY
+            const materials = [];
+            for (let i = 1; i <= currentRowCount; i++) {
+                const kittingMtls = KITTING_MATERIALS[i] || '';
+                const mtrlDesc = document.getElementById(`material_${i}`).value;
+                const materialCode = document.getElementById(`materialcode_${i}`).value;
+                const matlQty = document.getElementById(`qty1_${i}`).value;
+                const scanMaterial = document.getElementById(`scanmaterial_${i}`).value;
+                const lotNo = document.getElementById(`lot_${i}`).value;
+                const qty = document.getElementById(`qty_${i}`).value;
+                
+                // Only save rows that have data
+                if (mtrlDesc || materialCode || scanMaterial || lotNo || qty || matlQty) {
+                    materials.push({
+                        row_no: i,
+                        kitting_mtls: kittingMtls,
+                        mtrl_desc: mtrlDesc,
+                        material_code: materialCode,
+                        matl_qty: matlQty,
+                        scan_material: scanMaterial,
+                        lot_no: lotNo,
+                        qty: parseInt(qty) || 0
+                    });
+                }
+            }
+            
+            if (materials.length === 0) {
+                showError('No material data to save.');
+                return;
+            }
+            
+            // Submit to MySQL via API
+            fetch('/api/submit_material_data', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    model_code: modelCode,
+                    materials: materials
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    alert('Data saved to MySQL successfully!');
+                } else {
+                    showError('Error saving data: ' + data.error);
+                }
+            }).catch(e => {
+                showError('Error saving data: ' + e);
+            });
+        }
+
+        // ==================== KITTING SUMMARY FUNCTIONS ====================
+        let nextKittingNo = 1;
+        let mainDbData = {}; // Store MAIN_DB data by row_no
+        let currentKittingQrCode = ''; // Store the generated QR code data
+        let kittingQrScanned = false; // Track if QR code has been scanned
+
+        // ==================== STATE PERSISTENCE FUNCTIONS ====================
+        // Save current state to localStorage for browser close/refresh recovery
+        function saveStateToLocalStorage() {
+            const state = {
+                jobOrder: document.getElementById('jobOrderInput').value,
+                modelCode: document.getElementById('modelCodeInput').value,
+                suffix: document.getElementById('jobOrderSuffix').value,
+                quantity: document.getElementById('quantityInput').value,
+                nextKittingNo: nextKittingNo,
+                currentKittingQrCode: currentKittingQrCode,
+                totalKittings: document.getElementById('totalKittings')?.textContent || '0',
+                materials: [],
+                timestamp: new Date().toISOString()
+            };
+            
+            // Save all material row data
+            for (let i = 1; i <= currentRowCount; i++) {
+                const mtrlDesc = document.getElementById(`material_${i}`)?.value || '';
+                const materialCode = document.getElementById(`materialcode_${i}`)?.value || '';
+                const qtyUnit = document.getElementById(`qty1_${i}`)?.value || '';
+                const scanMaterial = document.getElementById(`scanmaterial_${i}`)?.value || '';
+                const lotNo = document.getElementById(`lot_${i}`)?.value || '';
+                const qty = document.getElementById(`qty_${i}`)?.value || '';
+                const remainingQty = document.getElementById(`remaining_qty_${i}`)?.value || '';
+                const goodChecked = document.getElementById(`good_${i}`)?.checked || false;
+                const kittingName = document.getElementById(`kitting_${i}`)?.textContent || '';
+                
+                if (mtrlDesc || materialCode || scanMaterial) {
+                    state.materials.push({
+                        row: i,
+                        kittingName: kittingName,
+                        mtrlDesc: mtrlDesc,
+                        materialCode: materialCode,
+                        qtyUnit: qtyUnit,
+                        scanMaterial: scanMaterial,
+                        lotNo: lotNo,
+                        qty: qty,
+                        remainingQty: remainingQty,
+                        goodChecked: goodChecked
+                    });
+                }
+            }
+            
+            localStorage.setItem('kittingSummaryState', JSON.stringify(state));
+            console.log('State saved to localStorage:', state.jobOrder);
+        }
+        
+        // Check MySQL tables before restoring from localStorage
+        function checkMySQLBeforeRestore() {
+            // Check if kitting_summary table has any data
+            fetch('/api/get_all_kitting_summary')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data && data.data.length > 0) {
+                        // MySQL has data - restore from localStorage
+                        console.log('MySQL has data - restoring from localStorage');
+                        restoreStateFromLocalStorage();
+                    } else {
+                        // MySQL is empty - clear localStorage and start fresh
+                        console.log('MySQL is empty - clearing localStorage and starting fresh');
+                        localStorage.removeItem('kittingSummaryState');
+                        // Clear all input fields
+                        document.getElementById('jobOrderInput').value = '';
+                        document.getElementById('jobOrderSuffix').value = '';
+                        document.getElementById('modelCodeInput').value = '';
+                        document.getElementById('quantityInput').value = '';
+                        // Clear kitting summary table
+                        const tbody = document.getElementById('kittingSummaryBody');
+                        if (tbody) tbody.innerHTML = '';
+                        // Reset kitting counters
+                        document.getElementById('nextKittingNo').textContent = '1';
+                        document.getElementById('totalKittings').textContent = '0';
+                    }
+                })
+                .catch(e => {
+                    console.log('Error checking MySQL:', e);
+                    // On error, try to restore from localStorage
+                    restoreStateFromLocalStorage();
+                });
+        }
+        
+        // Restore state from localStorage on page load
+        function restoreStateFromLocalStorage() {
+            const savedState = localStorage.getItem('kittingSummaryState');
+            if (!savedState) {
+                console.log('No saved state found');
+                return false;
+            }
+            
+            try {
+                const state = JSON.parse(savedState);
+                
+                // Check if state is from today (don't restore old states)
+                const savedDate = new Date(state.timestamp).toDateString();
+                const today = new Date().toDateString();
+                if (savedDate !== today) {
+                    console.log('Saved state is from a different day, clearing');
+                    localStorage.removeItem('kittingSummaryState');
+                    return false;
+                }
+                
+                // Restore job order and model code
+                if (state.jobOrder) {
+                    document.getElementById('jobOrderInput').value = state.jobOrder;
+                    // Load suffix and quantity from joborder_plan table
+                    loadSuffixAndQuantityFromJoborderPlan(state.jobOrder);
+                }
+                if (state.modelCode) {
+                    document.getElementById('modelCodeInput').value = state.modelCode;
+                }
+                
+                // Restore suffix and quantity from localStorage first
+                if (state.suffix) {
+                    document.getElementById('jobOrderSuffix').value = state.suffix;
+                }
+                if (state.quantity) {
+                    document.getElementById('quantityInput').value = state.quantity;
+                }
+                
+                // Restore kitting number and total
+                nextKittingNo = state.nextKittingNo || 1;
+                document.getElementById('nextKittingNo').textContent = nextKittingNo;
+                document.getElementById('totalKittings').textContent = state.totalKittings || '0';
+                
+                // Restore materials
+                if (state.materials && state.materials.length > 0) {
+                    state.materials.forEach(mat => {
+                        const row = mat.row;
+                        if (document.getElementById(`kitting_${row}`)) {
+                            document.getElementById(`kitting_${row}`).textContent = mat.kittingName || '';
+                        }
+                        if (document.getElementById(`material_${row}`)) {
+                            document.getElementById(`material_${row}`).value = mat.mtrlDesc || '';
+                        }
+                        if (document.getElementById(`materialcode_${row}`)) {
+                            document.getElementById(`materialcode_${row}`).value = mat.materialCode || '';
+                        }
+                        if (document.getElementById(`qty1_${row}`)) {
+                            document.getElementById(`qty1_${row}`).value = mat.qtyUnit || '';
+                        }
+                        if (document.getElementById(`scanmaterial_${row}`)) {
+                            document.getElementById(`scanmaterial_${row}`).value = mat.scanMaterial || '';
+                        }
+                        if (document.getElementById(`lot_${row}`)) {
+                            document.getElementById(`lot_${row}`).value = mat.lotNo || '';
+                        }
+                        if (document.getElementById(`qty_${row}`)) {
+                            document.getElementById(`qty_${row}`).value = mat.qty || '';
+                        }
+                        if (document.getElementById(`remaining_qty_${row}`)) {
+                            document.getElementById(`remaining_qty_${row}`).value = mat.remainingQty || '';
+                        }
+                        if (document.getElementById(`good_${row}`)) {
+                            document.getElementById(`good_${row}`).checked = mat.goodChecked || false;
+                            if (mat.goodChecked) {
+                                const goodCell = document.getElementById(`good_cell_${row}`);
+                                if (goodCell) goodCell.classList.add('good-cell');
+                            }
+                        }
+                    });
+                    
+                    // Update kitting summary and QR code
+                    setTimeout(() => {
+                        updateKittingSummary();
+                        generateKittingQrCode();
+                        checkCompleteButtonState();
+                    }, 100);
+                    
+                    console.log('State restored from localStorage');
+                    return true;
+                }
+            } catch (e) {
+                console.error('Error restoring state:', e);
+                localStorage.removeItem('kittingSummaryState');
+            }
+            return false;
+        }
+        
+        // Clear saved state
+        function clearSavedState() {
+            localStorage.removeItem('kittingSummaryState');
+            console.log('Saved state cleared');
+        }
+
+        // Generate Kitting QR Code with format DD/MM/YY-KITTING_NO JOB_ORDER
+        function generateKittingQrCode() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            if (!jobOrder) return;
+            
+            // Get current date in DD/MM/YY format
+            const now = new Date();
+            const day = String(now.getDate()).padStart(2, '0');
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const year = String(now.getFullYear()).slice(-2);
+            
+            // Format kitting number with leading zeros (0001, 0002, etc.)
+            const kittingNoFormatted = String(nextKittingNo).padStart(4, '0');
+            
+            // Generate QR code data: DD/MM/YY-KITTING_NO JOB_ORDER
+            currentKittingQrCode = `${day}/${month}/${year}-${kittingNoFormatted} ${jobOrder}`;
+            
+            console.log('Generated Kitting QR Code:', currentKittingQrCode);
+            
+            // Display QR code text
+            document.getElementById('kittingQrCodeText').textContent = currentKittingQrCode;
+            
+            // Generate QR code image using qrcodejs library
+            const qrContainer = document.getElementById('kittingQrCode');
+            qrContainer.innerHTML = ''; // Clear previous QR code
+            
+            if (typeof QRCode !== 'undefined') {
+                try {
+                    new QRCode(qrContainer, {
+                        text: currentKittingQrCode,
+                        width: 100,
+                        height: 100,
+                        colorDark: '#000000',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                    console.log('QR Code generated successfully');
+                } catch (error) {
+                    console.error('QR Code generation error:', error);
+                    qrContainer.innerHTML = '<span style="color: red; font-size: 10px;">QR Error</span>';
+                }
+            } else {
+                console.error('QRCode library not loaded');
+                qrContainer.innerHTML = '<span style="font-size: 10px;">' + currentKittingQrCode + '</span>';
+            }
+        }
+        
+        // Check if there are any unscanned problematic rows (row 3+, etc.)
+        function checkForUnscannedProblematicRows() {
+            for (let rowNo in problematicRowsScanned) {
+                const rowData = problematicRowsScanned[rowNo];
+                // Check if this problematic row has NOT been scanned yet
+                if (!rowData.scanned) {
+                    // Get material description for the warning message
+                    const materialInput = document.getElementById('material_' + rowNo);
+                    const materialDesc = materialInput ? materialInput.value : 'Unknown Material';
+                    return {
+                        rowNo: rowNo,
+                        materialDesc: materialDesc
+                    };
+                }
+            }
+            return null; // All problematic rows have been scanned
+        }
+
+        // Handle Kitting QR Code scan - automatically saves to MySQL when valid QR is scanned
+        function handleKittingQrScan(event) {
+            if (event.key === 'Enter') {
+                const scannedValue = event.target.value.trim();
+                
+                // Ignore empty scans
+                if (!scannedValue) {
+                    return;
+                }
+                
+                // Check if there are any unscanned problematic rows (row 3+, etc.)
+                const unscannedProblematicRow = checkForUnscannedProblematicRows();
+                if (unscannedProblematicRow) {
+                    alert('Cannot scan Kitting QR Code!\n\nYou need to scan the NEW LOT NO for:\n' + unscannedProblematicRow.materialDesc + ' (Row ' + unscannedProblematicRow.rowNo + '+)\n\nPlease scan the new lot material first.');
+                    event.target.value = '';
+                    return;
+                }
+                
+                if (scannedValue === currentKittingQrCode) {
+                    // QR code matches - automatically complete kitting
+                    kittingQrScanned = true;
+                    event.target.style.backgroundColor = '#90EE90'; // Light green
+                    event.target.style.borderColor = '#228B22';
+                    console.log('Kitting QR Code verified successfully - auto completing kitting');
+                    
+                    // Automatically complete kitting (save to MySQL)
+                    autoCompleteKitting();
+                } else {
+                    // QR code doesn't match - just clear and don't show error
+                    // This prevents error popup when material scans accidentally go here
+                    console.log('Scanned value does not match expected QR code, clearing input');
+                    event.target.value = '';
+                }
+            }
+        }
+        
+        // Auto complete kitting when QR code is scanned (no button click needed)
+        function autoCompleteKitting() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            const modelCode = document.getElementById('modelCodeInput').value;
+            
+            if (!jobOrder) {
+                showError('Please enter a Job Order first.');
+                return;
+            }
+            
+            // Collect materials for kitting
+            // Iterate through original rows (1-25) only, skip new lot rows (row 3+, etc.)
+            const materials = [];
+            
+            for (let i = 1; i <= currentRowCount; i++) {
+                const mtrlDescInput = document.getElementById('material_' + i);
+                const qtyUnitInput = document.getElementById('qty1_' + i);
+                const scanMaterialInput = document.getElementById('scanmaterial_' + i);
+                const lotNoInput = document.getElementById('lot_' + i);
+                const qtyInput = document.getElementById('qty_' + i);
+                
+                const mtrlDesc = mtrlDescInput ? mtrlDescInput.value : '';
+                const qtyUnit = qtyUnitInput ? qtyUnitInput.value : '';
+                const scanMaterial = scanMaterialInput ? scanMaterialInput.value : '';
+                const lotNo = lotNoInput ? lotNoInput.value : '';
+                const qty = qtyInput ? qtyInput.value : '';
+                
+                if (mtrlDesc) {
+                    // Use actual row number (1-25) from the element ID
+                    materials.push({
+                        row_no: i,
+                        material_description: mtrlDesc,
+                        qty_unit: parseInt(qtyUnit) || 0,
+                        scan_material: scanMaterial,
+                        lot_no: lotNo,
+                        qty_kitting: parseInt(qty) || 0
+                    });
+                }
+            }
+            
+            if (materials.length === 0) {
+                showError('No materials to complete kitting.');
+                return;
+            }
+            
+            // Save to KITTING_DB with QR code data (no confirmation needed - auto save)
+            fetch('/api/complete_kitting', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    model_code: modelCode,
+                    materials: materials,
+                    kitting_qr_code: currentKittingQrCode
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    // Save to joborder_plan table (1 row per kitting scan)
+                    saveToJoborderPlan(jobOrder, modelCode, currentKittingQrCode);
+                    
+                    alert(`Kitting ${currentKittingQrCode} saved to MySQL successfully!`);
+                    
+                    // Do NOT reset form - keep materials for next kitting
+                    // Just increment kitting number and regenerate QR code
+                    prepareForNextKitting();
+                } else {
+                    showError('Error completing kitting: ' + data.error);
+                }
+            }).catch(e => {
+                showError('Error completing kitting: ' + e);
+            });
+        }
+        
+        // Save to joborder_plan table - 1 row per kitting QR code scan
+        function saveToJoborderPlan(jobOrder, modelCode, kittingQrCode) {
+            // Get suffix from the job order suffix input field (constant, does not change)
+            const suffixInput = document.getElementById('jobOrderSuffix');
+            const suffix = suffixInput ? suffixInput.value.padStart(4, '0') : '0001';
+            
+            // Get plan quantity from the QUANTITY input field
+            const quantityInput = document.getElementById('quantityInput');
+            const planQty = quantityInput ? (parseInt(quantityInput.value) || 0) : 0;
+            
+            // Remove slash from date in kitting_qr_code (23/05/26-0001 -> 230526-0001)
+            const formattedQrCode = kittingQrCode.replace(/\//g, '');
+            
+            fetch('/api/save_joborder_plan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    suffix: suffix,
+                    model_code: modelCode,
+                    kitting_qr_code: formattedQrCode,
+                    plan_qty: planQty
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    console.log('Saved to joborder_plan: row_no=' + data.row_no + ', result=' + data.result + ', balance=' + data.balance);
+                } else {
+                    console.log('Error saving to joborder_plan:', data.error);
+                }
+            }).catch(e => console.log('Error saving to joborder_plan:', e));
+        }
+        
+        // Deduct QTY from REM QTY for all rows in the UI after kitting completion
+        function deductRemainingQtyInUI() {
+            // Deduct from regular rows (1-25)
+            for (let i = 1; i <= currentRowCount; i++) {
+                const qtyInput = document.getElementById('qty1_' + i);
+                const remQtyInput = document.getElementById('remaining_qty_' + i);
+                const materialInput = document.getElementById('material_' + i);
+                
+                // Only deduct if row has material data AND has valid REM QTY value
+                if (materialInput && materialInput.value.trim() && qtyInput && remQtyInput) {
+                    const qty = parseInt(qtyInput.value) || 0;
+                    const remQtyValue = remQtyInput.value.trim();
+                    
+                    // Skip if REM QTY is empty (no data to deduct from)
+                    if (!remQtyValue) {
+                        console.log('Row ' + i + ' skipped - REM QTY is empty');
+                        continue;
+                    }
+                    
+                    const currentRemQty = parseInt(remQtyValue) || 0;
+                    
+                    if (qty > 0) {
+                        const newRemQty = currentRemQty - qty;
+                        remQtyInput.value = newRemQty;
+                        console.log('Row ' + i + ' REM QTY deducted: ' + currentRemQty + ' - ' + qty + ' = ' + newRemQty);
+                    }
+                }
+            }
+            
+            // Deduct from new lot rows (row 3+, etc.)
+            for (let rowNo in problematicRowsScanned) {
+                const rowData = problematicRowsScanned[rowNo];
+                // Only deduct from new lot row if it has been scanned
+                if (rowData.scanned) {
+                    const newRemQtyInput = document.getElementById('newremqty_' + rowNo);
+                    const newQty1Input = document.getElementById('newqty1_' + rowNo);
+                    
+                    if (newRemQtyInput && newQty1Input) {
+                        const qty = parseInt(newQty1Input.value) || 0;
+                        const currentRemQty = parseInt(newRemQtyInput.value) || 0;
+                        
+                        if (qty > 0) {
+                            const newRemQty = currentRemQty - qty;
+                            newRemQtyInput.value = newRemQty;
+                            // Also update the stored value
+                            rowData.newRemQty = newRemQty;
+                            console.log('New lot row ' + rowNo + '+ REM QTY deducted: ' + currentRemQty + ' - ' + qty + ' = ' + newRemQty);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update Total Quantity Monitor button color based on current REM QTY values
+        function updateTotalQuantityMonitorButtonColor() {
+            let hasInsufficientQty = false;
+            
+            // Check all rows for insufficient quantity
+            for (let i = 1; i <= currentRowCount; i++) {
+                const qtyInput = document.getElementById('qty1_' + i);
+                const remQtyInput = document.getElementById('remaining_qty_' + i);
+                const materialInput = document.getElementById('material_' + i);
+                
+                if (materialInput && materialInput.value.trim() && qtyInput && remQtyInput) {
+                    const qty = parseInt(qtyInput.value) || 0;
+                    const remQtyValue = remQtyInput.value.trim();
+                    
+                    // Skip if REM QTY is empty (data not loaded yet)
+                    if (!remQtyValue) {
+                        continue;
+                    }
+                    
+                    const remQty = parseInt(remQtyValue) || 0;
+                    
+                    if (qty > 0 && remQty < qty) {
+                        // Check if this problematic row has been resolved (new lot scanned)
+                        const newLotInput = document.getElementById('newlot_' + i);
+                        const newGoodCheckbox = document.getElementById('newgood_' + i);
+                        const isResolved = newLotInput && newLotInput.value && newGoodCheckbox && newGoodCheckbox.checked;
+                        
+                        if (!isResolved) {
+                            hasInsufficientQty = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            // Update button color
+            const monitorBtn = document.getElementById('totalQuantityMonitorButton');
+            if (hasInsufficientQty) {
+                monitorBtn.style.backgroundColor = '#ff4444';
+                monitorBtn.style.color = 'white';
+                monitorBtn.style.borderColor = '#cc0000';
+            } else {
+                monitorBtn.style.backgroundColor = '';
+                monitorBtn.style.color = '';
+                monitorBtn.style.borderColor = '';
+            }
+        }
+        
+        // Deduct REM QTY for new lot rows (row 3+, etc.) - these are NOT in MAIN_DB
+        function deductNewLotRowsRemainingQty() {
+            for (let rowNo in problematicRowsScanned) {
+                const rowData = problematicRowsScanned[rowNo];
+                // Only deduct from new lot row if it has been scanned
+                if (rowData.scanned) {
+                    const newRemQtyInput = document.getElementById('newremqty_' + rowNo);
+                    const newQty1Input = document.getElementById('newqty1_' + rowNo);
+                    
+                    if (newRemQtyInput && newQty1Input) {
+                        // Use qtyUnit (full QTY/Unit) for subsequent kittings, not neededQty
+                        // neededQty was only for the FIRST kitting when old lot was partially consumed
+                        // After that, each kitting uses full QTY/Unit from the new lot
+                        const qty = parseInt(newQty1Input.value) || 0;
+                        const remQtyValue = newRemQtyInput.value.trim();
+                        
+                        // Skip if REM QTY is empty
+                        if (!remQtyValue) {
+                            console.log('New lot row ' + rowNo + '+ skipped - REM QTY is empty');
+                            continue;
+                        }
+                        
+                        const currentRemQty = parseInt(remQtyValue) || 0;
+                        
+                        // Skip deduction if this is the first time (REM QTY was already calculated correctly during scan)
+                        // The initial scan already calculated: scannedQty - neededQty (e.g., 50 - 4 = 46)
+                        // Only deduct on SUBSEQUENT kittings (kitting 5, 6, 7, etc.)
+                        if (!rowData.firstDeductionDone) {
+                            rowData.firstDeductionDone = true;
+                            console.log('New lot row ' + rowNo + '+ first kitting - skipping deduction (already calculated during scan)');
+                            continue;
+                        }
+                        
+                        if (qty > 0) {
+                            const newRemQty = currentRemQty - qty;
+                            newRemQtyInput.value = newRemQty;
+                            // Also update the stored value
+                            rowData.newRemQty = newRemQty;
+                            console.log('New lot row ' + rowNo + '+ REM QTY deducted: ' + currentRemQty + ' - ' + qty + ' = ' + newRemQty);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Prepare for next kitting without resetting materials
+        function prepareForNextKitting() {
+            // Hide and mark consumed any problematic rows that are ready to consume
+            for (let rowNo in problematicRowsScanned) {
+                const rowData = problematicRowsScanned[rowNo];
+                if (rowData.readyToConsume && !rowData.oldRowConsumed) {
+                    // Now hide the old row (row 3) after Kitting QR was scanned
+                    const oldRow = document.getElementById('row_' + rowNo);
+                    if (oldRow) {
+                        oldRow.style.display = 'none';
+                        console.log('Hidden old row ' + rowNo + ' after Kitting QR scan');
+                    }
+                    // Mark as consumed
+                    rowData.oldRowConsumed = true;
+                }
+            }
+            
+            // Deduct REM QTY for new lot rows (row 3+, etc.) - these are NOT in MAIN_DB
+            deductNewLotRowsRemainingQty();
+            
+            // Load fresh REM QTY values from MAIN_DB (backend already deducted)
+            // This will also update button color, insert new lot rows, and update Kitting Summary
+            loadRemainingQtyFromMainDb();
+            
+            // Increment kitting number
+            nextKittingNo++;
+            document.getElementById('nextKittingNo').textContent = nextKittingNo;
+            
+            // Update total kittings
+            const totalKittings = document.getElementById('totalKittings');
+            totalKittings.textContent = parseInt(totalKittings.textContent) + 1;
+            
+            // Reset QR code state
+            kittingQrScanned = false;
+            
+            // Generate new QR code for next kitting
+            generateKittingQrCode();
+            
+            // Reset QR scan input
+            const scanQrInput = document.getElementById('scanKittingQrInput');
+            if (scanQrInput) {
+                scanQrInput.value = '';
+                scanQrInput.style.backgroundColor = '#ffffcc'; // Ready for next scan
+                scanQrInput.style.borderColor = '#ff9900';
+                scanQrInput.placeholder = 'Scan Kitting QR Code to save...';
+                scanQrInput.focus();
+            }
+            
+            console.log('Prepared for next kitting: ' + nextKittingNo);
+            
+            // Auto-save state after kitting completion
+            saveStateToLocalStorage();
+        }
+
+        function updateKittingSummary() {
+            const tbody = document.getElementById('kittingSummaryBody');
+            
+            // Save existing new lot rows before clearing
+            const savedNewLotRows = {};
+            const newLotRows = tbody.querySelectorAll('tr[id^="kitting_newlot_"]');
+            newLotRows.forEach(row => {
+                savedNewLotRows[row.id] = row.cloneNode(true);
+            });
+            
+            tbody.innerHTML = '';
+            
+            // Get all rows with data
+            for (let i = 1; i <= currentRowCount; i++) {
+                const mtrlDesc = document.getElementById(`material_${i}`).value;
+                const qtyUnit = document.getElementById(`qty1_${i}`).value;
+                const scanMaterial = document.getElementById(`scanmaterial_${i}`).value;
+                const lotNo = document.getElementById(`lot_${i}`).value;
+                const remainingQty = document.getElementById(`remaining_qty_${i}`)?.value || '';
+                
+                // Only show rows with material description
+                if (mtrlDesc) {
+                    const row = document.createElement('tr');
+                    row.id = `kitting_row_${i}`;
+                    // Truncate material description for display
+                    const shortDesc = mtrlDesc.length > 25 ? mtrlDesc.substring(0, 25) + '...' : mtrlDesc;
+                    
+                    // Check if this is a problematic row (REM QTY < QTY)
+                    const isProblematic = problematicRowsScanned[i] !== undefined;
+                    
+                    // QTY/Kit = QTY/Unit - use stored value for problematic rows if input is empty
+                    let qtyUnitInt = qtyUnit ? Math.round(parseFloat(qtyUnit)) : '';
+                    if (!qtyUnitInt && isProblematic && problematicRowsScanned[i].qtyUnit) {
+                        qtyUnitInt = problematicRowsScanned[i].qtyUnit;
+                    }
+                    
+                    // For problematic rows, use stored OLD lot data (not current input values)
+                    let displayQtyKit = qtyUnitInt;
+                    let displayScanMaterial = scanMaterial || '';
+                    let displayLotNo = lotNo || '';
+                    
+                    if (isProblematic) {
+                        const rowTrackData = problematicRowsScanned[i];
+                        
+                        // If old row is consumed (after Kitting QR scan), skip adding it to Kitting Summary
+                        if (rowTrackData.oldRowConsumed) {
+                            // Don't add the old row - it's been consumed after Kitting QR scan
+                            // The new lot row will be added below
+                            console.log('Skipping consumed old row ' + i + ' in Kitting Summary');
+                            
+                            // Still need to add the new lot row
+                            const newLotRowId = `kitting_newlot_${i}`;
+                            const newScanMaterial = rowTrackData.newScanMaterial || '';
+                            const newLotNo = rowTrackData.newLotNo || '';
+                            // When old row is consumed, QTY/Kit should be full qtyUnit (6), not partial newQty (4)
+                            // Because the old row (with remaining 2) is gone, new lot now supplies full quantity
+                            const consumedQtyUnit = rowTrackData.qtyUnit || qtyUnitInt;
+                            const consumedQtyKit = consumedQtyUnit; // Full quantity, not partial
+                            
+                            const newSummaryRow = document.createElement('tr');
+                            newSummaryRow.id = newLotRowId;
+                            newSummaryRow.style.backgroundColor = '#ccffcc'; // Light green - active row
+                            newSummaryRow.innerHTML = `
+                                <td>${i}</td>
+                                <td title="${mtrlDesc}">${shortDesc}</td>
+                                <td>${consumedQtyUnit}</td>
+                                <td>${newScanMaterial}</td>
+                                <td>${newLotNo}</td>
+                                <td>${consumedQtyKit}</td>
+                            `;
+                            tbody.appendChild(newSummaryRow);
+                            continue; // Skip adding the old row
+                        }
+                        
+                        // Old row not yet consumed - show it with old lot data
+                        displayQtyKit = rowTrackData.remainingQty || Math.round(parseFloat(remainingQty)) || qtyUnitInt;
+                        if (rowTrackData.oldLotNo) {
+                            displayLotNo = rowTrackData.oldLotNo;
+                        }
+                        if (rowTrackData.oldScanMaterial) {
+                            displayScanMaterial = rowTrackData.oldScanMaterial;
+                        }
+                        row.style.backgroundColor = '#ffcccc';
+                    }
+                    
+                    row.innerHTML = `
+                        <td>${i}</td>
+                        <td title="${mtrlDesc}">${shortDesc}</td>
+                        <td>${qtyUnitInt}</td>
+                        <td>${displayScanMaterial}</td>
+                        <td>${displayLotNo}</td>
+                        <td>${displayQtyKit}</td>
+                    `;
+                    tbody.appendChild(row);
+                    
+                    // Re-insert or create the new lot row after this row if it's a problematic row
+                    const newLotRowId = `kitting_newlot_${i}`;
+                    if (savedNewLotRows[newLotRowId]) {
+                        // Get data from problematicRowsScanned (stored during second scan) or from inputs
+                        const rowTrackData = problematicRowsScanned[i] || {};
+                        const newScanMaterial = rowTrackData.newScanMaterial || document.getElementById('newscanmaterial_' + i)?.value || '';
+                        const newLotNo = rowTrackData.newLotNo || document.getElementById('newlot_' + i)?.value || '';
+                        // Use stored neededQty (4), not the input value
+                        const newQty = rowTrackData.newQty || document.getElementById('newqty_' + i)?.value || '';
+                        
+                        const savedRow = savedNewLotRows[newLotRowId];
+                        const cells = savedRow.querySelectorAll('td');
+                        // Now has 6 columns: #, MTRL DESC, QTY/Unit, SCAN MTRL, LOT NO, QTY/Kit
+                        if (cells.length >= 6) {
+                            if (newScanMaterial) cells[3].textContent = newScanMaterial;
+                            if (newLotNo) {
+                                cells[4].textContent = newLotNo;
+                                cells[4].style.color = '';
+                                cells[4].style.fontStyle = '';
+                            }
+                            if (newQty) cells[5].textContent = newQty;
+                        }
+                        
+                        tbody.appendChild(savedRow);
+                    } else if (isProblematic) {
+                        // Create new lot row if it doesn't exist yet but this is a problematic row
+                        const rowTrackData = problematicRowsScanned[i] || {};
+                        const newScanMaterial = rowTrackData.newScanMaterial || document.getElementById('newscanmaterial_' + i)?.value || '';
+                        const newLotNo = rowTrackData.newLotNo || document.getElementById('newlot_' + i)?.value || '';
+                        const newQty = rowTrackData.newQty || '';
+                        const neededQty = rowTrackData.qtyUnit - rowTrackData.remainingQty;
+                        // Always use stored qtyUnit from problematicRowsScanned for new lot row
+                        const newLotQtyUnit = rowTrackData.qtyUnit || qtyUnitInt;
+                        
+                        const newSummaryRow = document.createElement('tr');
+                        newSummaryRow.id = newLotRowId;
+                        newSummaryRow.style.backgroundColor = '#ffffcc'; // Light yellow
+                        newSummaryRow.innerHTML = `
+                            <td>${i}</td>
+                            <td title="${mtrlDesc}">${shortDesc}</td>
+                            <td>${newLotQtyUnit}</td>
+                            <td>${newScanMaterial || ''}</td>
+                            <td style="${newLotNo ? '' : 'color: #999; font-style: italic;'}">${newLotNo || 'New LOT...'}</td>
+                            <td id="kitting_newqty_${i}">${newQty || neededQty || ''}</td>
+                        `;
+                        tbody.appendChild(newSummaryRow);
+                    }
+                }
+            }
+            
+            // Save kitting summary to MySQL database
+            saveKittingSummaryToDb();
+        }
+        
+        function saveKittingSummaryToDb() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            const modelCode = document.getElementById('modelCodeInput').value;
+            
+            if (!jobOrder) return;
+            
+            // Collect all rows from the kitting summary table
+            const tbody = document.getElementById('kittingSummaryBody');
+            const rows = [];
+            let rowNo = 0;
+            
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const cells = tr.querySelectorAll('td');
+                // Now has 6 columns: #, MTRL DESC, QTY/Unit, SCAN MTRL, LOT NO, QTY/Kit
+                if (cells.length >= 6) {
+                    const rowNum = parseInt(cells[0].textContent) || 0;
+                    rows.push({
+                        row_no: rowNum,
+                        material_description: cells[1].getAttribute('title') || cells[1].textContent || '',
+                        material_code: '',
+                        qty_unit: parseInt(cells[2].textContent) || 0,
+                        scan_material: cells[3].textContent || '',
+                        lot_no: cells[4].textContent === 'New LOT...' ? '' : (cells[4].textContent || ''),
+                        qty_kit: parseInt(cells[5].textContent) || 0
+                    });
+                }
+            });
+            
+            if (rows.length === 0) return;
+            
+            // Only save if at least one row has scan_material data (actual kitting scan happened)
+            const hasScannedData = rows.some(row => row.scan_material && row.scan_material.trim() !== '');
+            if (!hasScannedData) {
+                console.log('No scanned data yet - skipping save to kitting_summary');
+                return;
+            }
+            
+            fetch('/api/save_kitting_summary', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    model_code: modelCode,
+                    rows: rows
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    console.log('Kitting summary saved to MySQL');
+                }
+            }).catch(e => console.log('Error saving kitting summary:', e));
+        }
+        
+        function loadKittingSummaryFromDb() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            if (!jobOrder) return;
+            
+            // Also load suffix and quantity from joborder_plan
+            loadSuffixAndQuantityFromJoborderPlan(jobOrder);
+            
+            fetch(`/api/get_kitting_summary?job_order=${encodeURIComponent(jobOrder)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data && data.data.length > 0) {
+                        console.log('Loading kitting summary from MySQL:', data.data.length, 'rows');
+                    } else {
+                        // MySQL is empty - clear localStorage to sync
+                        console.log('MySQL kitting_summary is empty - clearing localStorage');
+                        localStorage.removeItem('kittingSummaryState');
+                        return;
+                    }
+                    
+                    if (data.data && data.data.length > 0) {
+                        
+                        const tbody = document.getElementById('kittingSummaryBody');
+                        tbody.innerHTML = '';
+                        
+                        data.data.forEach(record => {
+                            const row = document.createElement('tr');
+                            row.id = `kitting_row_${record.row_no}`;
+                            
+                            const shortDesc = record.material_description && record.material_description.length > 25 ? 
+                                record.material_description.substring(0, 25) + '...' : (record.material_description || '');
+                            
+                            // Show qty_unit even if it's 0 (use empty string only if null/undefined)
+                            const qtyUnitDisplay = record.qty_unit !== null && record.qty_unit !== undefined ? record.qty_unit : '';
+                            const qtyKitDisplay = record.qty_kit !== null && record.qty_kit !== undefined ? record.qty_kit : '';
+                            
+                            row.innerHTML = `
+                                <td>${record.row_no}</td>
+                                <td title="${record.material_description || ''}">${shortDesc}</td>
+                                <td>${qtyUnitDisplay}</td>
+                                <td>${record.scan_material || ''}</td>
+                                <td>${record.lot_no || ''}</td>
+                                <td>${qtyKitDisplay}</td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    }
+                })
+                .catch(e => console.log('Error loading kitting summary:', e));
+        }
+        
+        // Load suffix and quantity from joborder_plan table (for refresh)
+        function loadSuffixAndQuantityFromJoborderPlan(jobOrder) {
+            if (!jobOrder) return;
+            
+            fetch(`/api/get_joborder_plan_latest?job_order=${encodeURIComponent(jobOrder)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        // Set suffix (4 digits)
+                        const suffix = data.data.suffix || '';
+                        const paddedSuffix = suffix.toString().padStart(4, '0');
+                        document.getElementById('jobOrderSuffix').value = paddedSuffix;
+                        console.log('Loaded suffix from joborder_plan:', paddedSuffix);
+                        
+                        // Set quantity (plan value)
+                        const quantity = data.data.plan || '';
+                        document.getElementById('quantityInput').value = quantity;
+                        console.log('Loaded quantity from joborder_plan:', quantity);
+                    }
+                })
+                .catch(e => console.log('Error loading from joborder_plan:', e));
+        }
+
+        function checkCompleteButtonState() {
+            const completeBtn = document.getElementById('completeBtn');
+            let allGood = true;
+            let hasAnyData = false;
+            
+            for (let i = 1; i <= currentRowCount; i++) {
+                const mtrlDesc = document.getElementById(`material_${i}`).value;
+                const checkbox = document.getElementById(`good_${i}`);
+                
+                if (mtrlDesc) {
+                    hasAnyData = true;
+                    if (!checkbox.checked) {
+                        allGood = false;
+                    }
+                }
+            }
+            
+            // Also check if all new lot rows (from problematic rows) have been scanned
+            for (let rowNo in problematicRowsScanned) {
+                const rowData = problematicRowsScanned[rowNo];
+                // If this problematic row has a new lot row, check if it's been scanned
+                const newLotInput = document.getElementById('newlot_' + rowNo);
+                const newGoodCheckbox = document.getElementById('newgood_' + rowNo);
+                
+                if (newLotInput && !newLotInput.value) {
+                    // New lot row exists but hasn't been scanned yet
+                    allGood = false;
+                    console.log('New lot row ' + rowNo + ' not yet scanned');
+                }
+                
+                if (newGoodCheckbox && !newGoodCheckbox.checked) {
+                    // New lot row exists but GOOD checkbox not checked
+                    allGood = false;
+                    console.log('New lot row ' + rowNo + ' GOOD not checked');
+                }
+            }
+            
+            const scanQrInput = document.getElementById('scanKittingQrInput');
+            
+            if (allGood && hasAnyData) {
+                // Enable QR scan input when all materials are scanned
+                scanQrInput.disabled = false;
+                scanQrInput.placeholder = 'Scan Kitting QR Code to save...';
+                scanQrInput.style.backgroundColor = '#ffffcc'; // Light yellow to indicate ready
+                scanQrInput.style.borderColor = '#ff9900';
+                scanQrInput.focus();
+            } else {
+                // Disable QR input
+                scanQrInput.disabled = true;
+                scanQrInput.placeholder = 'Complete all materials first...';
+                scanQrInput.value = '';
+                scanQrInput.style.backgroundColor = '';
+                scanQrInput.style.borderColor = '#9370db';
+                kittingQrScanned = false;
+            }
+        }
+
+        function loadNextKittingNo() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            if (!jobOrder) return;
+            
+            fetch(`/api/get_next_kitting_no?job_order=${encodeURIComponent(jobOrder)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        nextKittingNo = data.kitting_no;
+                        document.getElementById('nextKittingNo').textContent = nextKittingNo;
+                        
+                        // Generate QR code after getting the kitting number
+                        generateKittingQrCode();
+                    }
+                })
+                .catch(e => console.log('Error loading next kitting no:', e));
+        }
+
+        function loadKittingHistory() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            if (!jobOrder) return;
+            
+            fetch(`/api/get_kitting_db?job_order=${encodeURIComponent(jobOrder)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        // Count unique kitting numbers
+                        const uniqueKittings = new Set(data.data.map(d => d.kitting_no));
+                        document.getElementById('totalKittings').textContent = uniqueKittings.size;
+                    }
+                })
+                .catch(e => console.log('Error loading kitting history:', e));
+        }
+
+        function loadRemainingQtyFromMainDb() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            if (!jobOrder) return;
+            
+            fetch(`/api/get_main_db?job_order=${encodeURIComponent(jobOrder)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        let hasInsufficientQty = false;
+                        
+                        // Populate remaining_qty fields from MAIN_DB and check for insufficient qty
+                        data.data.forEach(record => {
+                            const rowNo = record.row_no;
+                            const qtyUnit = parseInt(record.qty_unit) || 0;
+                            const remainingQty = parseInt(record.remaining_qty) || 0;
+                            
+                            // Populate remaining_qty
+                            const remainingQtyInput = document.getElementById('remaining_qty_' + rowNo);
+                            if (remainingQtyInput) {
+                                remainingQtyInput.value = record.remaining_qty || '';
+                                console.log('Row ' + rowNo + ' REMAINING QTY: ' + record.remaining_qty);
+                            }
+                            
+                            // Check if REM QTY < QTY (insufficient quantity)
+                            // Only check if remaining_qty has a valid value (not empty)
+                            const hasValidRemQty = record.remaining_qty !== null && record.remaining_qty !== undefined && record.remaining_qty !== '';
+                            
+                            if (qtyUnit > 0 && hasValidRemQty && remainingQty < qtyUnit) {
+                                // Check if this problematic row has been resolved (new lot scanned)
+                                const newLotInput = document.getElementById('newlot_' + rowNo);
+                                const newGoodCheckbox = document.getElementById('newgood_' + rowNo);
+                                const isResolved = newLotInput && newLotInput.value && newGoodCheckbox && newGoodCheckbox.checked;
+                                
+                                if (!isResolved) {
+                                    hasInsufficientQty = true;
+                                }
+                                
+                                // Insert new row in Kitting Summary after this problematic row
+                                insertNewLotRowInKittingSummaryAfterScan(rowNo, record);
+                                // Also insert new row in Total Quantity Monitor
+                                checkAndInsertNewLotRow(rowNo, record);
+                            }
+                        });
+                        
+                        // Update Total Quantity Monitor button color
+                        const monitorBtn = document.getElementById('totalQuantityMonitorButton');
+                        if (hasInsufficientQty) {
+                            monitorBtn.style.backgroundColor = '#ff4444';
+                            monitorBtn.style.color = 'white';
+                            monitorBtn.style.borderColor = '#cc0000';
+                        } else {
+                            monitorBtn.style.backgroundColor = '';
+                            monitorBtn.style.color = '';
+                            monitorBtn.style.borderColor = '';
+                        }
+                        
+                        // Update Kitting Summary AFTER loading REM QTY data
+                        // This ensures new lot rows are inserted correctly
+                        updateKittingSummary();
+                    }
+                })
+                .catch(e => console.log('Error loading data from MAIN_DB:', e));
+        }
+        
+        function insertNewLotRowInKittingSummaryAfterScan(rowNo, record) {
+            const kittingSummaryBody = document.getElementById('kittingSummaryBody');
+            if (!kittingSummaryBody) {
+                console.log('Kitting Summary body not found');
+                return;
+            }
+            
+            const summaryRowId = `kitting_newlot_${rowNo}`;
+            
+            // Check if new lot row already exists in Kitting Summary
+            if (document.getElementById(summaryRowId)) {
+                return; // Already inserted
+            }
+            
+            // Get MATERIAL CODE from the original row for scan tracking
+            const materialCode = document.getElementById('materialcode_' + rowNo)?.value || record.material_code || '';
+            
+            // Track this row as problematic for scan logic - only if not already tracked
+            if (!problematicRowsScanned[rowNo]) {
+                problematicRowsScanned[rowNo] = {
+                    materialCode: materialCode,
+                    scanned: false,
+                    qtyUnit: parseInt(record.qty_unit) || 0,
+                    remainingQty: parseInt(record.remaining_qty) || 0
+                };
+                console.log('insertNewLotRowInKittingSummaryAfterScan: Registered NEW problematic row ' + rowNo);
+            } else {
+                console.log('insertNewLotRowInKittingSummaryAfterScan: Row ' + rowNo + ' already tracked, scanned=' + problematicRowsScanned[rowNo].scanned);
+            }
+            console.log('Registered problematic row ' + rowNo + ' with materialCode: ' + materialCode);
+            
+            // Find the row in Kitting Summary by index (rowNo - 1)
+            const summaryRows = kittingSummaryBody.querySelectorAll('tr:not([id^="kitting_newlot_"])');
+            const targetRowIndex = rowNo - 1; // 0-indexed
+            
+            console.log('Looking for row ' + rowNo + ' in Kitting Summary, found ' + summaryRows.length + ' rows');
+            
+            // Create new row for Kitting Summary
+            const shortDesc = record.material_description ? 
+                (record.material_description.length > 25 ? record.material_description.substring(0, 25) + '...' : record.material_description) : '';
+            const qtyUnitInt = record.qty_unit ? Math.round(parseFloat(record.qty_unit)) : '';
+            // Calculate the needed QTY for new lot row: QTY - REM QTY (e.g., 6 - 2 = 4)
+            const neededQty = qtyUnitInt - (parseInt(record.remaining_qty) || 0);
+            
+            const newSummaryRow = document.createElement('tr');
+            newSummaryRow.id = summaryRowId;
+            newSummaryRow.style.backgroundColor = '#ffffcc'; // Light yellow for new lot row
+            newSummaryRow.innerHTML = `
+                <td>${rowNo}</td>
+                <td title="${record.material_description || ''}">${shortDesc}</td>
+                <td>${qtyUnitInt}</td>
+                <td></td>
+                <td style="color: #999; font-style: italic;">New LOT...</td>
+                <td id="kitting_newqty_${rowNo}">${neededQty}</td>
+            `;
+            
+            // Insert after the problematic row in Kitting Summary
+            if (targetRowIndex >= 0 && targetRowIndex < summaryRows.length && summaryRows[targetRowIndex]) {
+                const targetRow = summaryRows[targetRowIndex];
+                // Paint the problematic row red in Kitting Summary
+                targetRow.style.backgroundColor = '#ffcccc';
+                
+                console.log('Inserting new lot row after row ' + rowNo + ' in Kitting Summary');
+                
+                if (targetRow.nextSibling) {
+                    kittingSummaryBody.insertBefore(newSummaryRow, targetRow.nextSibling);
+                } else {
+                    kittingSummaryBody.appendChild(newSummaryRow);
+                }
+            } else {
+                console.log('Target row not found in Kitting Summary for row ' + rowNo);
+            }
+            
+            // Auto-focus to START SCAN MTLS input when problematic row is detected
+            const scanInput = document.getElementById('scanMtlsInput');
+            if (scanInput) {
+                scanInput.focus();
+                console.log('Auto-focused to START SCAN MTLS input for problematic row ' + rowNo);
+            }
+        }
+
+        function resetFormToInitialState() {
+            // Get job order before clearing (needed for API call)
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            
+            // Clear Job Order input
+            document.getElementById('jobOrderInput').value = '';
+            
+            // Clear Model Code input
+            document.getElementById('modelCodeInput').value = '';
+            
+            // Reset Next Kitting number
+            nextKittingNo = 1;
+            document.getElementById('nextKittingNo').textContent = '1';
+            document.getElementById('totalKittings').textContent = '0';
+            
+            // Clear kitting summary from MySQL
+            if (jobOrder) {
+                fetch('/api/clear_kitting_summary', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ job_order: jobOrder })
+                }).then(r => r.json()).then(data => {
+                    if (data.success) {
+                        console.log('Kitting summary cleared from MySQL');
+                    }
+                }).catch(e => console.log('Error clearing kitting summary:', e));
+            }
+            
+            // Clear kitting summary UI
+            document.getElementById('kittingSummaryBody').innerHTML = '';
+            
+            // Reset QR code state
+            currentKittingQrCode = '';
+            kittingQrScanned = false;
+            document.getElementById('kittingQrCode').innerHTML = '';
+            document.getElementById('kittingQrCodeText').textContent = '';
+            
+            // Reset QR scan input
+            const scanQrInput = document.getElementById('scanKittingQrInput');
+            if (scanQrInput) {
+                scanQrInput.value = '';
+                scanQrInput.disabled = true;
+                scanQrInput.placeholder = 'Scan Kitting QR Code...';
+                scanQrInput.style.backgroundColor = '';
+                scanQrInput.style.borderColor = '#9370db';
+            }
+            
+            // Regenerate empty table rows
+            generateTableRows(25);
+            
+            // Focus back to Job Order input for next scan
+            document.getElementById('jobOrderInput').focus();
+            
+            console.log('Form reset to initial state');
+        }
+
+        function saveToMainDb() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            const modelCode = document.getElementById('modelCodeInput').value;
+            
+            if (!jobOrder) return;
+            
+            // Collect materials for MAIN_DB
+            // Iterate through actual table rows to get visual row position (1-25)
+            const materials = [];
+            const tableRows = document.querySelectorAll('#tableBody tr');
+            let visualRowNo = 0;
+            
+            tableRows.forEach((row) => {
+                visualRowNo++;
+                // Get the row number from the first cell (visual position)
+                const rowNumCell = row.querySelector('.row-num');
+                const actualRowNum = rowNumCell ? parseInt(rowNumCell.textContent) : visualRowNo;
+                
+                // Get the input values from this row
+                const mtrlDescInput = row.querySelector('input[id^="material_"]');
+                const qtyUnitInput = row.querySelector('input[id^="qty1_"]');
+                const scanMaterialInput = row.querySelector('input[id^="scanmaterial_"]');
+                const lotNoInput = row.querySelector('input[id^="lot_"]');
+                const qtyInput = row.querySelector('input[id^="qty_"]:not([id^="qty1_"])');
+                
+                const mtrlDesc = mtrlDescInput ? mtrlDescInput.value : '';
+                const qtyUnit = qtyUnitInput ? qtyUnitInput.value : '';
+                const scanMaterial = scanMaterialInput ? scanMaterialInput.value : '';
+                const lotNo = lotNoInput ? lotNoInput.value : '';
+                const qty = qtyInput ? qtyInput.value : '';
+                
+                if (mtrlDesc && lotNo) {
+                    // Only save rows that have been scanned (have lot number)
+                    // Use visual row position (1-25) not the element ID number
+                    materials.push({
+                        row_no: visualRowNo,
+                        material_description: mtrlDesc,
+                        qty_unit: parseInt(qtyUnit) || 0,
+                        scan_material: scanMaterial || '',
+                        lot_no: lotNo,
+                        remaining_qty: parseInt(qty) || 0
+                    });
+                }
+            });
+            
+            // Also add new lot row data from problematicRowsScanned
+            // These are rows that have been scanned with a new lot (e.g., row 3+ with LOT QTY = 50)
+            for (let rowNo in problematicRowsScanned) {
+                const rowData = problematicRowsScanned[rowNo];
+                // Only save if new lot has been scanned
+                if (rowData.scanned && rowData.newLotNo) {
+                    // Get material description from the original row
+                    const mtrlDescInput = document.getElementById('material_' + rowNo);
+                    const mtrlDesc = mtrlDescInput ? mtrlDescInput.value : '';
+                    
+                    // Update the existing row with new lot data instead of adding a new row
+                    // Find and update the existing material entry for this row
+                    const existingIdx = materials.findIndex(m => m.row_no === parseInt(rowNo));
+                    if (existingIdx >= 0) {
+                        // Update existing entry with new lot data
+                        materials[existingIdx].scan_material = rowData.newScanMaterial || '';
+                        materials[existingIdx].lot_no = rowData.newLotNo || '';
+                        materials[existingIdx].remaining_qty = rowData.newRemQty !== undefined ? rowData.newRemQty : (parseInt(rowData.newScannedQty) || 0);
+                        console.log('Updated row ' + rowNo + ' with new lot data: LOT=' + rowData.newLotNo + ', REM QTY=' + materials[existingIdx].remaining_qty);
+                    } else if (mtrlDesc) {
+                        // Add new entry if not found
+                        materials.push({
+                            row_no: parseInt(rowNo),
+                            material_description: mtrlDesc,
+                            qty_unit: rowData.qtyUnit || 0,
+                            scan_material: rowData.newScanMaterial || '',
+                            lot_no: rowData.newLotNo || '',
+                            remaining_qty: rowData.newRemQty !== undefined ? rowData.newRemQty : (parseInt(rowData.newScannedQty) || 0)
+                        });
+                        console.log('Added new lot row ' + rowNo + ' to MAIN_DB: LOT=' + rowData.newLotNo + ', REM QTY=' + (rowData.newRemQty !== undefined ? rowData.newRemQty : rowData.newScannedQty));
+                    }
+                }
+            }
+            
+            if (materials.length === 0) return;
+            
+            // Debug: Log materials being saved
+            console.log('Saving to MAIN_DB:', materials.map(m => `Row ${m.row_no}: ${m.material_description.substring(0, 20)}, LOT=${m.lot_no}, REM=${m.remaining_qty}`));
+            
+            fetch('/api/save_main_db', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    model_code: modelCode,
+                    materials: materials
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    console.log('Saved to MAIN_DB');
+                }
+            }).catch(e => console.log('Error saving to MAIN_DB:', e));
+        }
+
+        // Override handleGoodChange to also check complete button state
+        const originalHandleGoodChange = typeof handleGoodChange === 'function' ? handleGoodChange : null;
+        function handleGoodChange(rowNum) {
+            const checkbox = document.getElementById(`good_${rowNum}`);
+            const cell = document.getElementById(`good_cell_${rowNum}`);
+            
+            if (checkbox.checked) {
+                cell.classList.add('good-cell');
+                cell.classList.remove('ng-cell');
+            } else {
+                cell.classList.remove('good-cell');
+            }
+            
+            checkAllGood();
+            checkCompleteButtonState();
+            updateKittingSummary();
+        }
+
+        // ==================== AUTO-RELOAD ON SERVER RESTART ====================
+        let knownServerStartTime = null;
+        async function checkServerRestart() {
+            try {
+                const response = await fetch('/api/server_start_time');
+                const data = await response.json();
+                if (data.success) {
+                    if (knownServerStartTime === null) {
+                        knownServerStartTime = data.start_time;
+                    } else if (knownServerStartTime !== data.start_time) {
+                        console.log('[AUTO-RELOAD] Server restart detected, reloading page...');
+                        location.reload();
+                    }
+                }
+            } catch (err) {}
+        }
+        setInterval(checkServerRestart, 2000);
+        checkServerRestart();
+    </script>
+
+</body>
+</html>

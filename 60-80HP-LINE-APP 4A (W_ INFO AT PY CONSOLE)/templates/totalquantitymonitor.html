@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Total Quantity Monitor</title>
+</head>
+<body>
+    <!-- Left Side: Main Material Table (SS1) -->
+        <div class="main-table-section">
+            <table class="data-table" id="materialTable">
+                <thead>
+                    <tr>
+                        <th style="width: 30px;"></th>
+                        <th style="width: 80px;">KITTING MTLS</th>
+                        <th style="min-width: 450px;">MTRL DESC</th>
+                        <th style="width: 200px;">MATERIAL CODE</th>
+                        <th style="width: 60px;">QTY</th>
+                        <th style="width: 200px;">SCAN MATERIAL</th>
+                        <th style="width: 200px;">LOT NO</th>
+                        <th style="width: 60px;">QTY</th>
+                        <th style="width: 50px;">GOOD</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Rows will be generated dynamically -->
+                </tbody>
+            </table>
+
+            <!-- START SCAN MTLS Box -->
+            <div class="scan-box-container">
+                <div class="scan-box">
+                    <div class="scan-box-label">START SCAN MTLS</div>
+                    <input type="text" class="scan-box-input" id="scanMtlsInput" placeholder="Scan here..." onkeydown="handleScanInput(event)">
+                </div>
+            </div>
+        </div>
+</body>
+</html>
