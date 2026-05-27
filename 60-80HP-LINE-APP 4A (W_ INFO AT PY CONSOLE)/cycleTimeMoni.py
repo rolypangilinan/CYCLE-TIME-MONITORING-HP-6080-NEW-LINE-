@@ -4,7 +4,7 @@
 # render_template: Shows our HTML pages to visitors
 # jsonify: For returning JSON responses to AJAX calls
 from flask import Flask, request, render_template, jsonify
-from database_manager import DatabaseManager
+from database_manager  import DatabaseManager
 import threading
 import time
 
@@ -809,7 +809,7 @@ def get_kitting_db():
         if not job_order:
             return jsonify({"success": False, "error": "Job order is required"}), 400
         
-        data = db_manager.get_kitting_db_data(job_order)
+        data = db_manager.get_kitting_db_data(job_order, today_only=True)
         return jsonify({"success": True, "data": data})
             
     except Exception as e:
@@ -903,6 +903,87 @@ def get_kitting_summary():
     except Exception as e:
         print(f"Error getting kitting summary: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/save_problematic_rows", methods=["POST"])
+def save_problematic_rows():
+    """Save problematic rows to problematic_row table (when REM QTY < QTY)"""
+    try:
+        data = request.json
+        job_order = data.get('job_order', '')
+        model_code = data.get('model_code', '')
+        rows = data.get('rows', [])
+        
+        if not job_order:
+            return jsonify({"success": False, "error": "Job order is required"}), 400
+        
+        if not rows:
+            return jsonify({"success": False, "error": "No rows to save"}), 400
+        
+        result = db_manager.save_problematic_rows(job_order, model_code, rows)
+        
+        if result:
+            return jsonify({"success": True, "message": f"Saved problematic rows for job order {job_order}"})
+        else:
+            return jsonify({"success": False, "error": "Failed to save problematic rows"}), 500
+            
+    except Exception as e:
+        print(f"Error saving problematic rows: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/get_problematic_rows", methods=["GET"])
+def get_problematic_rows():
+    """Get problematic rows from problematic_row table"""
+    try:
+        job_order = request.args.get('job_order', '')
+        
+        if not job_order:
+            return jsonify({"success": False, "error": "Job order is required"}), 400
+        
+        data = db_manager.get_problematic_rows(job_order)
+        return jsonify({"success": True, "data": data})
+            
+    except Exception as e:
+        print(f"Error getting problematic rows: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/has_problematic_rows", methods=["GET"])
+def has_problematic_rows():
+    """Check if there are problematic rows for a job order"""
+    try:
+        job_order = request.args.get('job_order', '')
+        
+        if not job_order:
+            return jsonify({"success": False, "error": "Job order is required"}), 400
+        
+        has_rows = db_manager.has_problematic_rows(job_order)
+        return jsonify({"success": True, "has_problematic_rows": has_rows})
+            
+    except Exception as e:
+        print(f"Error checking problematic rows: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/clear_problematic_rows", methods=["POST"])
+def clear_problematic_rows():
+    """Clear problematic rows for a job order"""
+    try:
+        data = request.json
+        job_order = data.get('job_order', '')
+        
+        if not job_order:
+            return jsonify({"success": False, "error": "Job order is required"}), 400
+        
+        result = db_manager.clear_problematic_rows(job_order)
+        
+        if result:
+            return jsonify({"success": True, "message": f"Cleared problematic rows for job order {job_order}"})
+        else:
+            return jsonify({"success": False, "error": "Failed to clear problematic rows"}), 500
+            
+    except Exception as e:
+        print(f"Error clearing problematic rows: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 
 @app.route("/api/get_next_kitting_no", methods=["GET"])
 def get_next_kitting_no():

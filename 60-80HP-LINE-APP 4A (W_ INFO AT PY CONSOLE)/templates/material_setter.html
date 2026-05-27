@@ -1015,9 +1015,13 @@
                 }
                 
                 // Update remaining_qty
+                // BUT skip if this row has excess data from autoPopulateExcessLot()
                 const remainingQtyInput = document.getElementById('remaining_qty_' + rowNo);
                 if (remainingQtyInput) {
-                    remainingQtyInput.value = record.remaining_qty || '';
+                    const hasExcessData = problematicRowsScanned[rowNo] && problematicRowsScanned[rowNo].excessRemQty !== undefined;
+                    if (!hasExcessData) {
+                        remainingQtyInput.value = record.remaining_qty || '';
+                    }
                 }
                 
                 // Check if REM QTY < QTY (insufficient quantity)
@@ -1025,7 +1029,10 @@
                 const tableRow = document.querySelector(`#tableBody tr:nth-child(${rowNo})`);
                 const hasValidRemQty = record.remaining_qty !== null && record.remaining_qty !== undefined && record.remaining_qty !== '';
                 
-                if (tableRow && qtyUnit > 0 && hasValidRemQty && remainingQty < qtyUnit) {
+                // Check if this row has excess data that resolves the insufficient quantity
+                const hasExcessData = problematicRowsScanned[rowNo] && problematicRowsScanned[rowNo].excessRemQty !== undefined;
+                
+                if (tableRow && qtyUnit > 0 && hasValidRemQty && remainingQty < qtyUnit && !hasExcessData) {
                     // Check if this problematic row has been resolved (new lot scanned)
                     const newLotInput = document.getElementById('newlot_' + rowNo);
                     const newGoodCheckbox = document.getElementById('newgood_' + rowNo);
@@ -1065,58 +1072,37 @@
         let problematicRowsScanned = {};
         
         function checkAndInsertNewLotRow(rowNo, record) {
-            const tbody = document.getElementById('tableBody');
-            const existingRow = document.querySelector(`#tableBody tr:nth-child(${rowNo})`);
-            const nextRowId = `newlotrow_${rowNo}`;
-            
-            // Check if new lot row already exists
-            if (document.getElementById(nextRowId)) {
-                return; // Already inserted
-            }
-            
-            // Get REF KITTING MTLS from the original row
-            const kittingMtls = document.getElementById('kitting_' + rowNo)?.textContent || '';
             // Get MATERIAL CODE from the original row
             const materialCode = document.getElementById('materialcode_' + rowNo)?.value || record.material_code || '';
+            // Get QTY/Unit from the original row (not from record)
+            const originalQtyUnit = document.getElementById('qty1_' + rowNo)?.value || record.qty_unit || '';
+            
+            console.log('checkAndInsertNewLotRow: Row ' + rowNo + ', QTY/Unit: ' + originalQtyUnit);
             
             // Mark this row as having a new lot row (for scan logic) - only if not already tracked
             if (!problematicRowsScanned[rowNo]) {
+                const qtyUnit = parseInt(originalQtyUnit) || 0;
+                const remainingQty = parseInt(record.remaining_qty) || 0;
+                
+                // QTY/KIT FORMULA: MIN(QTY/UNIT, REM_QTY)
+                const oldRowQtyKit = Math.min(qtyUnit, remainingQty);
+                const newRowQtyKit = qtyUnit - oldRowQtyKit;
+                
                 problematicRowsScanned[rowNo] = {
                     materialCode: materialCode,
                     scanned: false, // Will be true after first scan
-                    qtyUnit: parseInt(record.qty_unit) || 0,
-                    remainingQty: parseInt(record.remaining_qty) || 0
+                    qtyUnit: qtyUnit,
+                    remainingQty: remainingQty,
+                    oldRowQtyKit: oldRowQtyKit,  // QTY/KIT for old row = MIN(QTY/UNIT, REM_QTY)
+                    newRowQtyKit: newRowQtyKit   // QTY/KIT for new row = QTY/UNIT - oldRowQtyKit
                 };
-                console.log('checkAndInsertNewLotRow: Registered NEW problematic row ' + rowNo + ' with materialCode: ' + materialCode);
+                console.log('checkAndInsertNewLotRow: Registered NEW problematic row ' + rowNo + ' with materialCode: ' + materialCode + ', oldQtyKit: ' + oldRowQtyKit + ', newQtyKit: ' + newRowQtyKit);
             } else {
                 console.log('checkAndInsertNewLotRow: Row ' + rowNo + ' already tracked, scanned=' + problematicRowsScanned[rowNo].scanned);
             }
             
-            // Create new row for scanning new LOT NO in Total Quantity Monitor
-            const newRow = document.createElement('tr');
-            newRow.id = `newlotrow_${rowNo}`; // Changed from newlot_ to newlotrow_ to avoid conflict with input
-            newRow.style.backgroundColor = '#ffffcc'; // Light yellow for new lot row
-            newRow.innerHTML = `
-                <td class="row-num">${rowNo}+</td>
-                <td id="newkitting_${rowNo}">${kittingMtls}</td>
-                <td><input type="text" value="${record.material_description || ''}" class="mtrl-desc" readonly></td>
-                <td><input type="text" id="newmaterialcode_${rowNo}" value="${materialCode}" class="material-code" readonly></td>
-                <td><input type="text" id="newqty1_${rowNo}" value="${record.qty_unit || ''}" readonly></td>
-                <td><input type="text" id="newscanmaterial_${rowNo}" placeholder="Scan new material..." readonly></td>
-                <td><input type="text" id="newlot_${rowNo}" placeholder="Scan new LOT NO..." readonly></td>
-                <td><input type="text" id="newqty_${rowNo}" readonly></td>
-                <td><input type="text" id="newremqty_${rowNo}" readonly></td>
-                <td id="newgood_cell_${rowNo}"><input type="checkbox" id="newgood_${rowNo}" disabled onchange="handleNewGoodChange(${rowNo})"></td>
-            `;
-            
-            // Insert after the problematic row in Total Quantity Monitor
-            if (existingRow && existingRow.nextSibling) {
-                tbody.insertBefore(newRow, existingRow.nextSibling);
-            } else if (existingRow) {
-                tbody.appendChild(newRow);
-            }
-            
-            // Also insert a new row in Kitting Summary after the problematic row
+            // NO NEW ROWS IN TOTAL QUANTITY MONITOR - only insert in Kitting Summary
+            // When new spacer lot is scanned, it will overwrite the original row in Total Quantity Monitor
             insertNewLotRowInKittingSummary(rowNo, record);
         }
         
@@ -1134,45 +1120,253 @@
                 return; // Already inserted
             }
             
-            // Find the row in Kitting Summary that corresponds to the problematic row
-            // Use row index (rowNo - 1) since Kitting Summary rows are in same order as Total Quantity Monitor
-            const summaryRows = kittingSummaryBody.querySelectorAll('tr:not([id^="kitting_newlot_"])');
-            const targetRowIndex = rowNo - 1; // 0-indexed
+            // Find the ORIGINAL row in Kitting Summary by looking for kitting_row_{rowNo}
+            // This ensures we get the correct row even if rows have been inserted
+            let targetRow = document.getElementById(`kitting_row_${rowNo}`);
             
-            console.log('Looking for row ' + rowNo + ' in Kitting Summary, found ' + summaryRows.length + ' rows');
+            // If not found by ID, try to find by row number in first cell
+            if (!targetRow) {
+                const allRows = kittingSummaryBody.querySelectorAll('tr:not([id^="kitting_newlot_"])');
+                for (let row of allRows) {
+                    const firstCell = row.querySelector('td:first-child');
+                    if (firstCell && parseInt(firstCell.textContent) === rowNo) {
+                        targetRow = row;
+                        break;
+                    }
+                }
+            }
             
-            // Create new row for Kitting Summary
-            const shortDesc = record.material_description ? 
-                (record.material_description.length > 25 ? record.material_description.substring(0, 25) + '...' : record.material_description) : '';
-            const qtyUnitInt = record.qty_unit ? Math.round(parseFloat(record.qty_unit)) : '';
+            if (!targetRow) {
+                console.log('Target row not found in Kitting Summary for row ' + rowNo);
+                return;
+            }
+            
+            // GET MTRL DESC AND QTY FROM THE ORIGINAL ROW IN KITTING SUMMARY (not from record)
+            const targetCells = targetRow.querySelectorAll('td');
+            const originalMtrlDesc = targetCells[1] ? (targetCells[1].getAttribute('title') || targetCells[1].textContent || '') : '';
+            const originalQtyUnit = targetCells[2] ? (parseInt(targetCells[2].textContent) || '') : '';
+            
+            // Get remaining qty from record
+            const remainingQty = parseInt(record.remaining_qty) || 0;
+            const qtyUnit = parseInt(originalQtyUnit) || 0;
+            
+            // QTY/KIT FORMULA: MIN(QTY/UNIT, REM_QTY)
+            // For OLD row (problematic row): QTY/KIT = MIN(QTY/UNIT, REM_QTY) = REM_QTY (since REM_QTY < QTY/UNIT)
+            const oldRowQtyKit = Math.min(qtyUnit, remainingQty);
+            
+            // For NEW row: QTY/KIT = QTY/UNIT - oldRowQtyKit (the needed quantity from new lot)
+            const newRowQtyKit = qtyUnit - oldRowQtyKit;
+            
+            console.log('insertNewLotRowInKittingSummary: Row ' + rowNo + ' - MTRL DESC: ' + originalMtrlDesc + ', QTY/Unit: ' + qtyUnit + ', REM_QTY: ' + remainingQty + ', OLD QTY/KIT: ' + oldRowQtyKit + ', NEW QTY/KIT: ' + newRowQtyKit);
+            
+            // Update the OLD row's QTY/KIT to show the remaining qty (what we can get from old lot)
+            const oldRowQtyKitCell = targetCells[5]; // 6th column is QTY/KIT
+            if (oldRowQtyKitCell) {
+                oldRowQtyKitCell.textContent = oldRowQtyKit;
+            }
+            
+            // Create new row for Kitting Summary using data from ORIGINAL row
+            const shortDesc = originalMtrlDesc ? 
+                (originalMtrlDesc.length > 25 ? originalMtrlDesc.substring(0, 25) + '...' : originalMtrlDesc) : '';
             
             const newSummaryRow = document.createElement('tr');
             newSummaryRow.id = summaryRowId;
             newSummaryRow.style.backgroundColor = '#ffffcc'; // Light yellow for new lot row
+            // QTY/KIT should be BLANK until new LOT NO is scanned
             newSummaryRow.innerHTML = `
                 <td>${rowNo}</td>
-                <td title="${record.material_description || ''}">${shortDesc}</td>
-                <td>${qtyUnitInt}</td>
+                <td title="${originalMtrlDesc}">${shortDesc}</td>
+                <td>${qtyUnit}</td>
                 <td></td>
                 <td style="color: #999; font-style: italic;">New LOT...</td>
-                <td>${qtyUnitInt}</td>
+                <td id="kitting_newqty_${rowNo}"></td>
             `;
             
-            // Insert after the problematic row in Kitting Summary
-            if (targetRowIndex >= 0 && targetRowIndex < summaryRows.length && summaryRows[targetRowIndex]) {
-                const targetRow = summaryRows[targetRowIndex];
-                // Paint the problematic row red in Kitting Summary
-                targetRow.style.backgroundColor = '#ffcccc';
-                
-                console.log('Inserting new lot row after row ' + rowNo + ' in Kitting Summary');
-                
-                if (targetRow.nextSibling) {
-                    kittingSummaryBody.insertBefore(newSummaryRow, targetRow.nextSibling);
-                } else {
-                    kittingSummaryBody.appendChild(newSummaryRow);
-                }
+            // Paint the problematic row red in Kitting Summary
+            targetRow.style.backgroundColor = '#ffcccc';
+            
+            console.log('Inserting new lot row after row ' + rowNo + ' in Kitting Summary');
+            
+            // Insert after the problematic row
+            if (targetRow.nextSibling) {
+                kittingSummaryBody.insertBefore(newSummaryRow, targetRow.nextSibling);
             } else {
-                console.log('Target row not found in Kitting Summary for row ' + rowNo);
+                kittingSummaryBody.appendChild(newSummaryRow);
+            }
+            
+            // Save problematic rows to MySQL (both original row and new lot row)
+            saveProblematicRowsToDb(rowNo, record);
+        }
+        
+        // Save problematic rows to problematic_row table in MySQL
+        function saveProblematicRowsToDb(rowNo, record) {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            const modelCode = document.getElementById('modelCodeInput').value;
+            
+            if (!jobOrder) return;
+            
+            // Get all current rows from Kitting Summary including the new lot row
+            const tbody = document.getElementById('kittingSummaryBody');
+            const rows = [];
+            
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const cells = tr.querySelectorAll('td');
+                if (cells.length >= 6) {
+                    const rowNum = parseInt(cells[0].textContent) || 0;
+                    const isNewLotRow = tr.id && tr.id.startsWith('kitting_newlot_');
+                    const parentRowNo = isNewLotRow ? parseInt(tr.id.replace('kitting_newlot_', '')) : null;
+                    
+                    rows.push({
+                        row_no: rowNum,
+                        material_description: cells[1].getAttribute('title') || cells[1].textContent || '',
+                        material_code: '',
+                        qty_unit: parseInt(cells[2].textContent) || 0,
+                        scan_material: cells[3].textContent || '',
+                        lot_no: cells[4].textContent === 'New LOT...' ? '' : (cells[4].textContent || ''),
+                        qty_kit: parseInt(cells[5].textContent) || 0,
+                        is_new_lot_row: isNewLotRow ? 1 : 0,
+                        parent_row_no: parentRowNo
+                    });
+                }
+            });
+            
+            if (rows.length === 0) return;
+            
+            fetch('/api/save_problematic_rows', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    model_code: modelCode,
+                    rows: rows
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    console.log('Problematic rows saved to MySQL');
+                }
+            }).catch(e => console.log('Error saving problematic rows:', e));
+        }
+        
+        // ==================== INSERT NEW ROW LOGIC (SS3) ====================
+        // Check if we need to insert ANOTHER new row based on cumulative QTY/KIT
+        // KEEP INSERTING while: cumulative total < QTY/UNIT OR new stock REM_QTY <= QTY/UNIT
+        // STOP INSERTING ONLY when: cumulative total >= QTY/UNIT AND new stock REM_QTY > QTY/UNIT
+        function checkAndInsertAdditionalNewLotRow(rowNo, rowData, scannedQty, scannedMaterialCode, scannedLotNo) {
+            const qtyUnit = rowData.qtyUnit || 6;
+            const actualScannedQty = parseInt(scannedQty) || 0;
+            
+            // Calculate cumulative QTY/KIT total for this row
+            // This includes: oldRowQtyKit + all new lot rows' scanned QTY
+            const oldRowQtyKit = rowData.oldRowQtyKit || rowData.remainingQty || 0;
+            
+            // Initialize cumulative tracking if not exists
+            if (!rowData.cumulativeQtyKit) {
+                rowData.cumulativeQtyKit = oldRowQtyKit;
+            }
+            
+            // Add the just-scanned QTY to cumulative total
+            rowData.cumulativeQtyKit += actualScannedQty;
+            
+            // Track how many additional rows have been inserted for this problematic row
+            if (!rowData.additionalRowCount) {
+                rowData.additionalRowCount = 0;
+            }
+            
+            // For SS2/SS3 logic: Use the LAST SCANNED QTY as indicator of stock availability
+            // If lastScannedQty > qtyUnit, it means the new stock has enough remaining
+            // Example: Scanned QTY=12 means stock has at least 12, so REM_QTY >= 12 > 6
+            // Example: Scanned QTY=1 means stock might be low, so keep inserting
+            const lastScannedQty = rowData.lastScannedQty || actualScannedQty;
+            
+            console.log('checkAndInsertAdditionalNewLotRow: Row ' + rowNo + 
+                ', QTY/UNIT=' + qtyUnit + 
+                ', oldRowQtyKit=' + oldRowQtyKit +
+                ', scannedQty=' + actualScannedQty +
+                ', cumulativeQtyKit=' + rowData.cumulativeQtyKit +
+                ', lastScannedQty=' + lastScannedQty +
+                ', additionalRowCount=' + rowData.additionalRowCount);
+            
+            // LOGIC FROM SS2:
+            // STOP INSERTING when: cumulative total >= QTY/UNIT AND lastScannedQty > QTY/UNIT
+            // Example: cumulative=18, lastScannedQty=12, QTY/UNIT=6 -> 12 > 6, so STOP
+            // Example: cumulative=6, lastScannedQty=1, QTY/UNIT=6 -> 1 is NOT > 6, so KEEP INSERTING
+            
+            const newRemQtyValue = lastScannedQty;
+            
+            // STOP only if: cumulative >= qtyUnit AND newRemQty > qtyUnit (STRICTLY GREATER)
+            if (rowData.cumulativeQtyKit >= qtyUnit && newRemQtyValue > qtyUnit) {
+                console.log('STOP INSERTING: cumulative=' + rowData.cumulativeQtyKit + ' >= qtyUnit=' + qtyUnit + ' AND newRemQty=' + newRemQtyValue + ' > qtyUnit=' + qtyUnit);
+                return; // Stop inserting new rows
+            }
+            
+            // Otherwise, KEEP INSERTING a new row
+            // This covers: cumulative < qtyUnit OR newRemQty <= qtyUnit
+            console.log('KEEP INSERTING: cumulative=' + rowData.cumulativeQtyKit + ', newRemQty=' + newRemQtyValue + ', qtyUnit=' + qtyUnit);
+            
+            // Insert another new lot row
+            rowData.additionalRowCount++;
+            const additionalRowId = `kitting_newlot_${rowNo}_${rowData.additionalRowCount}`;
+            
+            // Store the additional row info - QTY/KIT will be blank until scanned
+            if (!rowData.additionalRows) {
+                rowData.additionalRows = [];
+            }
+            rowData.additionalRows.push({
+                id: additionalRowId,
+                qtyKit: '', // Blank until scanned
+                scanMaterial: '',
+                lotNo: '',
+                scanned: false
+            });
+            
+            // Insert additional row in Kitting Summary ONLY (with blank QTY/KIT)
+            // Total Quantity Monitor does NOT need additional rows - it will overwrite the original row
+            insertAdditionalNewLotRowInKittingSummary(rowNo, rowData, additionalRowId, '');
+            
+            console.log('Inserted additional new lot row in Kitting Summary: ' + additionalRowId + ' (QTY/KIT blank until scanned)');
+        }
+        
+        function insertAdditionalNewLotRowInKittingSummary(rowNo, rowData, additionalRowId, additionalQtyKit) {
+            const kittingSummaryBody = document.getElementById('kittingSummaryBody');
+            if (!kittingSummaryBody) return;
+            
+            // Check if already exists
+            if (document.getElementById(additionalRowId)) return;
+            
+            // Find the last new lot row for this problematic row
+            let lastNewLotRow = document.getElementById(`kitting_newlot_${rowNo}`);
+            if (rowData.additionalRowCount > 1) {
+                const prevAdditionalId = `kitting_newlot_${rowNo}_${rowData.additionalRowCount - 1}`;
+                const prevRow = document.getElementById(prevAdditionalId);
+                if (prevRow) lastNewLotRow = prevRow;
+            }
+            
+            if (!lastNewLotRow) return;
+            
+            // Get material description from original row
+            const originalRow = document.getElementById(`kitting_row_${rowNo}`);
+            const originalMtrlDesc = originalRow ? 
+                (originalRow.querySelector('td:nth-child(2)')?.getAttribute('title') || 
+                 originalRow.querySelector('td:nth-child(2)')?.textContent || '') : '';
+            const shortDesc = originalMtrlDesc.length > 25 ? originalMtrlDesc.substring(0, 25) + '...' : originalMtrlDesc;
+            
+            const newSummaryRow = document.createElement('tr');
+            newSummaryRow.id = additionalRowId;
+            newSummaryRow.style.backgroundColor = '#ffffcc'; // Light yellow
+            newSummaryRow.innerHTML = `
+                <td>${rowNo}</td>
+                <td title="${originalMtrlDesc}">${shortDesc}</td>
+                <td>${rowData.qtyUnit}</td>
+                <td></td>
+                <td style="color: #999; font-style: italic;">New LOT...</td>
+                <td>${additionalQtyKit}</td>
+            `;
+            
+            // Insert after the last new lot row
+            if (lastNewLotRow.nextSibling) {
+                kittingSummaryBody.insertBefore(newSummaryRow, lastNewLotRow.nextSibling);
+            } else {
+                kittingSummaryBody.appendChild(newSummaryRow);
             }
         }
         
@@ -1656,17 +1850,15 @@
                                 // Check all good status after populating
                                 checkAllGood();
                                 
-                                // Update kitting summary
-                                updateKittingSummary();
-                                
                                 // Load kitting info for this job order
                                 loadNextKittingNo();
                                 loadKittingHistory();
                                 loadRemainingQtyFromMainDb();
                                 
-                                // Load kitting summary from MySQL (will overwrite if data exists)
+                                // Load kitting summary from MySQL FIRST (problematic_row or kitting_summary)
+                                // Only call updateKittingSummary if no data exists in database
                                 setTimeout(() => {
-                                    loadKittingSummaryFromDb();
+                                    loadKittingSummaryFromDbOrUpdate();
                                 }, 300);
                                 
                                 // Only save state to localStorage (NOT to MAIN_DB yet)
@@ -1701,6 +1893,15 @@
         let materialsConfigured = false;
 
         document.addEventListener('DOMContentLoaded', function() {
+            // Auto-focus on Job Order input when page loads
+            setTimeout(() => {
+                const jobOrderInput = document.getElementById('jobOrderInput');
+                if (jobOrderInput) {
+                    jobOrderInput.focus();
+                    console.log('Auto-focused on Job Order input');
+                }
+            }, 300);
+            
             // Load ref_kitting_format FIRST, then generate table
             fetch('/api/get_ref_kitting_format').then(r => r.json()).then(data => {
                 if (data.success && data.format) {
@@ -1711,10 +1912,10 @@
                 loadKittingMaterials();
                 generateTableRows(25);
                 
-                // Check MySQL first - only restore from localStorage if MySQL has data
-                setTimeout(() => {
-                    checkMySQLBeforeRestore();
-                }, 200);
+                // No localStorage - page starts fresh, user scans job order to load data
+                // Clear any old localStorage data
+                localStorage.removeItem('kittingSummaryState');
+                console.log('Page loaded - scan job order to load data from MySQL');
             });
             
             loadSettings();
@@ -1723,11 +1924,6 @@
             loadSavedColumnHeaders();
             loadSavedPageTitle();
             loadSavedActionButtons();
-            
-            // Save state before page unload (browser close, refresh, navigate away)
-            window.addEventListener('beforeunload', function() {
-                saveStateToLocalStorage();
-            });
         });
         
         function loadSavedSubColumns() {
@@ -2043,109 +2239,141 @@
                     const rowData = problematicRowsScanned[problematicRowNo];
                     console.log('Processing problematic row ' + problematicRowNo + ', scanned: ' + rowData.scanned);
                     
-                    // For problematic rows, scan goes DIRECTLY to the new row (row 3+)
-                    // Old lot data already exists in MAIN_DB - no need to scan old lot
-                    // Only ONE scan needed - directly populate the new row
+                    // Find the FIRST UNSCANNED ROW by scanning the DOM directly
+                    // This is more reliable than tracking arrays
+                    let targetRowId = null;
+                    let targetRowIndex = -1;
                     
-                    // Populate the new inserted row (new Lot No) - row 3+
-                    const newScanMaterial = document.getElementById('newscanmaterial_' + problematicRowNo);
-                    const newLotNo = document.getElementById('newlot_' + problematicRowNo);
-                    const newQty = document.getElementById('newqty_' + problematicRowNo);
-                    const newGood = document.getElementById('newgood_' + problematicRowNo);
+                    console.log('Finding target row - rowData.scanned:', rowData.scanned, 
+                        ', additionalRows:', rowData.additionalRows ? rowData.additionalRows.length : 0);
                     
-                    // Calculate needed QTY: QTY - REM QTY (e.g., 6 - 2 = 4)
-                    const neededQty = rowData.qtyUnit - rowData.remainingQty;
+                    // Check main new lot row first
+                    const mainNewLotRow = document.getElementById('kitting_newlot_' + problematicRowNo);
+                    if (mainNewLotRow) {
+                        const lotCell = mainNewLotRow.querySelector('td:nth-child(5)');
+                        console.log('Main new lot row LOT cell text:', lotCell ? lotCell.textContent : 'null');
+                        if (lotCell && (lotCell.textContent.includes('New LOT') || lotCell.textContent.trim() === '')) {
+                            targetRowId = 'kitting_newlot_' + problematicRowNo;
+                            targetRowIndex = -1;
+                            console.log('Using main new lot row (unscanned): ' + targetRowId);
+                        }
+                    }
+                    
+                    // If main row is scanned, check additional rows in DOM
+                    if (targetRowId === null) {
+                        let additionalRowIndex = 1;
+                        while (true) {
+                            const potentialRowId = `kitting_newlot_${problematicRowNo}_${additionalRowIndex}`;
+                            const potentialRow = document.getElementById(potentialRowId);
+                            console.log('Checking DOM for: ' + potentialRowId + ', found:', !!potentialRow);
+                            if (!potentialRow) break;
+                            
+                            // Check if this row has "New LOT..." text or empty LOT (unscanned)
+                            const lotCell = potentialRow.querySelector('td:nth-child(5)');
+                            const lotText = lotCell ? lotCell.textContent.trim() : '';
+                            console.log('Additional row ' + additionalRowIndex + ' LOT cell text:', lotText);
+                            
+                            if (lotText.includes('New LOT') || lotText === '') {
+                                targetRowId = potentialRowId;
+                                targetRowIndex = additionalRowIndex - 1;
+                                console.log('Found unscanned additional row in DOM: ' + targetRowId);
+                                
+                                // Ensure additionalRows array exists and has this entry
+                                if (!rowData.additionalRows) {
+                                    rowData.additionalRows = [];
+                                }
+                                while (rowData.additionalRows.length < additionalRowIndex) {
+                                    rowData.additionalRows.push({
+                                        id: `kitting_newlot_${problematicRowNo}_${rowData.additionalRows.length + 1}`,
+                                        qtyKit: '',
+                                        scanMaterial: '',
+                                        lotNo: '',
+                                        scanned: false
+                                    });
+                                }
+                                break;
+                            }
+                            additionalRowIndex++;
+                        }
+                    }
+                    
+                    if (targetRowId === null) {
+                        console.log('All new lot rows already scanned for row ' + problematicRowNo + ' - no target found');
+                        scanInput.value = '';
+                        return;
+                    }
+                    
+                    // QTY/KIT FORMULA: Use stored values or calculate
+                    const neededQty = rowData.newRowQtyKit || (rowData.qtyUnit - rowData.remainingQty);
                     
                     console.log('Scan for problematic row: qtyUnit=' + rowData.qtyUnit + ', remainingQty=' + rowData.remainingQty + ', neededQty=' + neededQty + ', scannedQty=' + scannedQty);
                     
-                    // Total Quantity Monitor new row - use scannedQty (50) for QTY column
-                    console.log('Updating Total Quantity Monitor new row inputs:');
-                    console.log('  newScanMaterial element:', newScanMaterial);
-                    console.log('  newLotNo element:', newLotNo);
-                    console.log('  newQty element:', newQty);
-                    
-                    if (newScanMaterial) {
-                        newScanMaterial.value = scannedMaterialCode;
-                        newScanMaterial.placeholder = ''; // Clear placeholder
-                        console.log('  Set newScanMaterial.value to:', scannedMaterialCode);
-                    }
-                    if (newLotNo) {
-                        newLotNo.value = scannedLotNo;
-                        newLotNo.placeholder = ''; // Clear placeholder
-                        console.log('  Set newLotNo.value to:', scannedLotNo);
-                    }
-                    if (newQty) {
-                        newQty.value = scannedQty; // Use actual scannedQty (50) for Total Quantity Monitor
-                        console.log('  Set newQty.value to:', scannedQty);
-                    }
-                    
-                    // Calculate and set REM QTY for new row: scannedQty - neededQty (e.g., 50 - 4 = 46)
-                    const newRemQty = document.getElementById('newremqty_' + problematicRowNo);
+                    // Calculate new REM QTY for tracking: scannedQty - neededQty
                     const newRemQtyValue = parseInt(scannedQty) - neededQty;
-                    if (newRemQty) {
-                        newRemQty.value = newRemQtyValue;
-                        console.log('  Set newRemQty.value to:', newRemQtyValue);
-                    }
                     
-                    // Store the new REM QTY for later use
-                    problematicRowsScanned[problematicRowNo].newRemQty = newRemQtyValue;
-                    
-                    if (newGood) {
-                        newGood.disabled = false;
-                        newGood.checked = true;
-                        // Apply green styling to the GOOD cell
-                        handleNewGoodChange(problematicRowNo);
-                    }
-                    
-                    // Store the scanned data in the tracking object for updateKittingSummary to use
-                    problematicRowsScanned[problematicRowNo].newScanMaterial = scannedMaterialCode;
-                    problematicRowsScanned[problematicRowNo].newLotNo = scannedLotNo;
-                    problematicRowsScanned[problematicRowNo].newQty = neededQty; // Kitting Summary uses neededQty (4)
-                    problematicRowsScanned[problematicRowNo].newScannedQty = scannedQty; // Total Quantity Monitor uses scannedQty (50)
-                    
-                    // Mark as scanned
-                    problematicRowsScanned[problematicRowNo].scanned = true;
-                    
-                    // Update the Kitting Summary new lot row - QTY/Kit should be neededQty (4), not scannedQty (50)
-                    const kittingNewQty = document.getElementById('kitting_newqty_' + problematicRowNo);
-                    if (kittingNewQty) {
-                        kittingNewQty.textContent = neededQty;
-                    }
-                    
-                    // Update the Kitting Summary new lot row with LOT NO and SCAN MATERIAL
-                    // Columns: 1=#, 2=MTRL DESC, 3=QTY/Unit, 4=SCAN MTRL, 5=LOT NO, 6=QTY/Kit
-                    const kittingNewLotRow = document.getElementById('kitting_newlot_' + problematicRowNo);
-                    if (kittingNewLotRow) {
-                        const scanCell = kittingNewLotRow.querySelector('td:nth-child(4)');
+                    // Update the target row in Kitting Summary
+                    const kittingTargetRow = document.getElementById(targetRowId);
+                    if (kittingTargetRow) {
+                        const scanCell = kittingTargetRow.querySelector('td:nth-child(4)');
                         if (scanCell) {
                             scanCell.textContent = scannedMaterialCode;
                         }
-                        const lotCell = kittingNewLotRow.querySelector('td:nth-child(5)');
+                        const lotCell = kittingTargetRow.querySelector('td:nth-child(5)');
                         if (lotCell) {
                             lotCell.textContent = scannedLotNo;
                             lotCell.style.color = '';
                             lotCell.style.fontStyle = '';
                         }
+                        const qtyKitCell = kittingTargetRow.querySelector('td:nth-child(6)');
+                        if (qtyKitCell) {
+                            qtyKitCell.textContent = scannedQty;
+                        }
+                        console.log('Updated Kitting Summary row: ' + targetRowId + ' with LOT NO: ' + scannedLotNo);
                     }
                     
-                    // Mark the old row as ready to be consumed (will be hidden after Kitting QR scan)
-                    // Do NOT hide row 3 yet - wait until Kitting QR code is scanned
-                    problematicRowsScanned[problematicRowNo].readyToConsume = true;
+                    // Mark the appropriate row as scanned and store data
+                    // For SS3 logic: Track the LAST scanned QTY to determine if we should stop inserting
+                    // If scannedQty > qtyUnit, it means the new stock has enough remaining (REM_QTY > QTY/UNIT)
+                    const actualScannedQtyInt = parseInt(scannedQty) || 0;
+                    rowData.lastScannedQty = actualScannedQtyInt;
                     
-                    console.log('Old row ' + problematicRowNo + ' marked ready to consume after Kitting QR scan');
-                    console.log('Scan for problematic row ' + problematicRowNo + ' (new Lot No): ' + scannedLotNo + ', neededQty: ' + neededQty + ', scannedQty: ' + scannedQty);
+                    if (targetRowIndex === -1) {
+                        // First new lot row
+                        rowData.scanned = true;
+                        rowData.newScanMaterial = scannedMaterialCode;
+                        rowData.newLotNo = scannedLotNo;
+                        rowData.newQty = scannedQty;
+                        rowData.newScannedQty = scannedQty;
+                        rowData.newRemQty = actualScannedQtyInt; // Use actual scanned qty as indicator of stock availability
+                        rowData.readyToConsume = true;
+                    } else {
+                        // Additional row
+                        rowData.additionalRows[targetRowIndex].scanned = true;
+                        rowData.additionalRows[targetRowIndex].scanMaterial = scannedMaterialCode;
+                        rowData.additionalRows[targetRowIndex].lotNo = scannedLotNo;
+                        rowData.additionalRows[targetRowIndex].qtyKit = scannedQty;
+                        // Update newRemQty with the last scanned qty for SS3 logic
+                        rowData.newRemQty = actualScannedQtyInt;
+                    }
+                    
+                    console.log('Scan for problematic row ' + problematicRowNo + ' (target: ' + targetRowId + '): ' + scannedLotNo + ', scannedQty: ' + scannedQty);
                     
                     // Clear the scan input for next scan
                     scanInput.value = '';
                     updateKittingSummary();
-                    checkCompleteButtonState();
                     
-                    // Update Total Quantity Monitor button color - should turn normal after new lot is scanned
+                    // Update Total Quantity Monitor button color FIRST
+                    // This will also call checkCompleteButtonState via setTimeout
                     updateTotalQuantityMonitorButtonColor();
                     
                     // Save to MAIN_DB after each material scan
                     saveToMainDb();
-                    saveStateToLocalStorage(); // Auto-save state after problematic row scan
+                    saveStateToLocalStorage();
+                    
+                    // ==================== INSERT NEW ROW LOGIC (SS2) ====================
+                    // Check if we need to insert ANOTHER new row based on cumulative QTY/KIT
+                    checkAndInsertAdditionalNewLotRow(problematicRowNo, rowData, scannedQty, scannedMaterialCode, scannedLotNo);
+                    
                     return;
                 }
                 
@@ -2158,6 +2386,11 @@
                         document.getElementById('scanmaterial_' + i).value = scannedMaterialCode;
                         document.getElementById('lot_' + i).value = scannedLotNo;
                         document.getElementById('qty_' + i).value = scannedQty;
+                        
+                        // Set REM QTY to LOT QTY initially (deduction happens in deductRemainingQtyInUI after kitting)
+                        const lotQty = parseInt(scannedQty) || 0;
+                        document.getElementById('remaining_qty_' + i).value = lotQty;
+                        console.log('Row ' + i + ' REM QTY set to LOT QTY: ' + lotQty);
                         
                         // Auto-check GOOD checkbox
                         const goodCheckbox = document.getElementById('good_' + i);
@@ -2177,7 +2410,10 @@
                 // Clear the scan input for next scan
                 scanInput.value = '';
                 updateKittingSummary();
-                checkCompleteButtonState();
+                
+                // Update Total Quantity Monitor button color FIRST
+                // This will also call checkCompleteButtonState via setTimeout
+                updateTotalQuantityMonitorButtonColor();
                 
                 // Save to MAIN_DB after each material scan
                 if (matchFound) {
@@ -2364,187 +2600,26 @@
         let kittingQrScanned = false; // Track if QR code has been scanned
 
         // ==================== STATE PERSISTENCE FUNCTIONS ====================
-        // Save current state to localStorage for browser close/refresh recovery
+        // All state is now saved to MySQL only - no localStorage
         function saveStateToLocalStorage() {
-            const state = {
-                jobOrder: document.getElementById('jobOrderInput').value,
-                modelCode: document.getElementById('modelCodeInput').value,
-                suffix: document.getElementById('jobOrderSuffix').value,
-                quantity: document.getElementById('quantityInput').value,
-                nextKittingNo: nextKittingNo,
-                currentKittingQrCode: currentKittingQrCode,
-                totalKittings: document.getElementById('totalKittings')?.textContent || '0',
-                materials: [],
-                timestamp: new Date().toISOString()
-            };
-            
-            // Save all material row data
-            for (let i = 1; i <= currentRowCount; i++) {
-                const mtrlDesc = document.getElementById(`material_${i}`)?.value || '';
-                const materialCode = document.getElementById(`materialcode_${i}`)?.value || '';
-                const qtyUnit = document.getElementById(`qty1_${i}`)?.value || '';
-                const scanMaterial = document.getElementById(`scanmaterial_${i}`)?.value || '';
-                const lotNo = document.getElementById(`lot_${i}`)?.value || '';
-                const qty = document.getElementById(`qty_${i}`)?.value || '';
-                const remainingQty = document.getElementById(`remaining_qty_${i}`)?.value || '';
-                const goodChecked = document.getElementById(`good_${i}`)?.checked || false;
-                const kittingName = document.getElementById(`kitting_${i}`)?.textContent || '';
-                
-                if (mtrlDesc || materialCode || scanMaterial) {
-                    state.materials.push({
-                        row: i,
-                        kittingName: kittingName,
-                        mtrlDesc: mtrlDesc,
-                        materialCode: materialCode,
-                        qtyUnit: qtyUnit,
-                        scanMaterial: scanMaterial,
-                        lotNo: lotNo,
-                        qty: qty,
-                        remainingQty: remainingQty,
-                        goodChecked: goodChecked
-                    });
-                }
-            }
-            
-            localStorage.setItem('kittingSummaryState', JSON.stringify(state));
-            console.log('State saved to localStorage:', state.jobOrder);
+            // REMOVED - All data saved to MySQL only
+            console.log('localStorage disabled - all data saved to MySQL');
         }
         
-        // Check MySQL tables before restoring from localStorage
         function checkMySQLBeforeRestore() {
-            // Check if kitting_summary table has any data
-            fetch('/api/get_all_kitting_summary')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success && data.data && data.data.length > 0) {
-                        // MySQL has data - restore from localStorage
-                        console.log('MySQL has data - restoring from localStorage');
-                        restoreStateFromLocalStorage();
-                    } else {
-                        // MySQL is empty - clear localStorage and start fresh
-                        console.log('MySQL is empty - clearing localStorage and starting fresh');
-                        localStorage.removeItem('kittingSummaryState');
-                        // Clear all input fields
-                        document.getElementById('jobOrderInput').value = '';
-                        document.getElementById('jobOrderSuffix').value = '';
-                        document.getElementById('modelCodeInput').value = '';
-                        document.getElementById('quantityInput').value = '';
-                        // Clear kitting summary table
-                        const tbody = document.getElementById('kittingSummaryBody');
-                        if (tbody) tbody.innerHTML = '';
-                        // Reset kitting counters
-                        document.getElementById('nextKittingNo').textContent = '1';
-                        document.getElementById('totalKittings').textContent = '0';
-                    }
-                })
-                .catch(e => {
-                    console.log('Error checking MySQL:', e);
-                    // On error, try to restore from localStorage
-                    restoreStateFromLocalStorage();
-                });
+            // REMOVED - No localStorage to check
+            console.log('localStorage disabled - loading from MySQL only');
         }
         
-        // Restore state from localStorage on page load
         function restoreStateFromLocalStorage() {
-            const savedState = localStorage.getItem('kittingSummaryState');
-            if (!savedState) {
-                console.log('No saved state found');
-                return false;
-            }
-            
-            try {
-                const state = JSON.parse(savedState);
-                
-                // Check if state is from today (don't restore old states)
-                const savedDate = new Date(state.timestamp).toDateString();
-                const today = new Date().toDateString();
-                if (savedDate !== today) {
-                    console.log('Saved state is from a different day, clearing');
-                    localStorage.removeItem('kittingSummaryState');
-                    return false;
-                }
-                
-                // Restore job order and model code
-                if (state.jobOrder) {
-                    document.getElementById('jobOrderInput').value = state.jobOrder;
-                    // Load suffix and quantity from joborder_plan table
-                    loadSuffixAndQuantityFromJoborderPlan(state.jobOrder);
-                }
-                if (state.modelCode) {
-                    document.getElementById('modelCodeInput').value = state.modelCode;
-                }
-                
-                // Restore suffix and quantity from localStorage first
-                if (state.suffix) {
-                    document.getElementById('jobOrderSuffix').value = state.suffix;
-                }
-                if (state.quantity) {
-                    document.getElementById('quantityInput').value = state.quantity;
-                }
-                
-                // Restore kitting number and total
-                nextKittingNo = state.nextKittingNo || 1;
-                document.getElementById('nextKittingNo').textContent = nextKittingNo;
-                document.getElementById('totalKittings').textContent = state.totalKittings || '0';
-                
-                // Restore materials
-                if (state.materials && state.materials.length > 0) {
-                    state.materials.forEach(mat => {
-                        const row = mat.row;
-                        if (document.getElementById(`kitting_${row}`)) {
-                            document.getElementById(`kitting_${row}`).textContent = mat.kittingName || '';
-                        }
-                        if (document.getElementById(`material_${row}`)) {
-                            document.getElementById(`material_${row}`).value = mat.mtrlDesc || '';
-                        }
-                        if (document.getElementById(`materialcode_${row}`)) {
-                            document.getElementById(`materialcode_${row}`).value = mat.materialCode || '';
-                        }
-                        if (document.getElementById(`qty1_${row}`)) {
-                            document.getElementById(`qty1_${row}`).value = mat.qtyUnit || '';
-                        }
-                        if (document.getElementById(`scanmaterial_${row}`)) {
-                            document.getElementById(`scanmaterial_${row}`).value = mat.scanMaterial || '';
-                        }
-                        if (document.getElementById(`lot_${row}`)) {
-                            document.getElementById(`lot_${row}`).value = mat.lotNo || '';
-                        }
-                        if (document.getElementById(`qty_${row}`)) {
-                            document.getElementById(`qty_${row}`).value = mat.qty || '';
-                        }
-                        if (document.getElementById(`remaining_qty_${row}`)) {
-                            document.getElementById(`remaining_qty_${row}`).value = mat.remainingQty || '';
-                        }
-                        if (document.getElementById(`good_${row}`)) {
-                            document.getElementById(`good_${row}`).checked = mat.goodChecked || false;
-                            if (mat.goodChecked) {
-                                const goodCell = document.getElementById(`good_cell_${row}`);
-                                if (goodCell) goodCell.classList.add('good-cell');
-                            }
-                        }
-                    });
-                    
-                    // Update kitting summary and QR code
-                    setTimeout(() => {
-                        updateKittingSummary();
-                        generateKittingQrCode();
-                        checkCompleteButtonState();
-                    }, 100);
-                    
-                    console.log('State restored from localStorage');
-                    return true;
-                }
-            } catch (e) {
-                console.error('Error restoring state:', e);
-                localStorage.removeItem('kittingSummaryState');
-            }
+            // REMOVED - No localStorage to restore
+            console.log('localStorage disabled - loading from MySQL only');
             return false;
         }
         
-        // Clear saved state
         function clearSavedState() {
-            localStorage.removeItem('kittingSummaryState');
-            console.log('Saved state cleared');
+            // REMOVED - No localStorage to clear
+            console.log('localStorage disabled');
         }
 
         // Generate Kitting QR Code with format DD/MM/YY-KITTING_NO JOB_ORDER
@@ -2705,6 +2780,13 @@
                 })
             }).then(r => r.json()).then(data => {
                 if (data.success) {
+                    // IMPORTANT: Save kitting_summary BEFORE prepareForNextKitting()
+                    // This ensures we capture the CURRENT kitting data, not the next kitting's data
+                    saveKittingSummaryToDb();
+                    
+                    // Save to MAIN_DB BEFORE prepareForNextKitting() to capture current state
+                    saveToMainDb();
+                    
                     // Save to joborder_plan table (1 row per kitting scan)
                     saveToJoborderPlan(jobOrder, modelCode, currentKittingQrCode);
                     
@@ -2809,8 +2891,9 @@
         // Update Total Quantity Monitor button color based on current REM QTY values
         function updateTotalQuantityMonitorButtonColor() {
             let hasInsufficientQty = false;
+            let unresolvedRows = [];
             
-            // Check all rows for insufficient quantity
+            // Check ALL rows for insufficient quantity - don't break early
             for (let i = 1; i <= currentRowCount; i++) {
                 const qtyInput = document.getElementById('qty1_' + i);
                 const remQtyInput = document.getElementById('remaining_qty_' + i);
@@ -2828,30 +2911,71 @@
                     const remQty = parseInt(remQtyValue) || 0;
                     
                     if (qty > 0 && remQty < qty) {
-                        // Check if this problematic row has been resolved (new lot scanned)
-                        const newLotInput = document.getElementById('newlot_' + i);
-                        const newGoodCheckbox = document.getElementById('newgood_' + i);
-                        const isResolved = newLotInput && newLotInput.value && newGoodCheckbox && newGoodCheckbox.checked;
+                        // This is a problematic row - check if it's been resolved
+                        const rowData = problematicRowsScanned[i];
+                        let isResolved = false;
                         
+                        if (rowData) {
+                            // Check if resolved via excessRemQty (from checkQtyKitComplete)
+                            if (rowData.excessRemQty !== undefined) {
+                                console.log('Row ' + i + ' RESOLVED via excessRemQty: ' + rowData.excessRemQty);
+                                isResolved = true;
+                            } else {
+                                const cumulativeQtyKit = rowData.cumulativeQtyKit || 0;
+                                const lastScannedQty = rowData.lastScannedQty || 0;
+                                const qtyUnit = rowData.qtyUnit || qty;
+                                
+                                // Check if resolved: cumulative >= qtyUnit AND lastScannedQty > qtyUnit (has excess)
+                                const isResolvedWithExcess = cumulativeQtyKit >= qtyUnit && lastScannedQty > qtyUnit;
+                                
+                                // Also check if all new lot rows are scanned
+                                let allNewLotsScanned = rowData.scanned === true;
+                                if (rowData.additionalRows && rowData.additionalRows.length > 0) {
+                                    for (let j = 0; j < rowData.additionalRows.length; j++) {
+                                        if (!rowData.additionalRows[j].scanned) {
+                                            allNewLotsScanned = false;
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                console.log('Row ' + i + ' check: cumulative=' + cumulativeQtyKit + ', lastScanned=' + lastScannedQty + ', qtyUnit=' + qtyUnit + ', resolvedWithExcess=' + isResolvedWithExcess + ', allScanned=' + allNewLotsScanned);
+                                
+                                isResolved = isResolvedWithExcess && allNewLotsScanned;
+                            }
+                        }
+                        
+                        // If not resolved, mark as insufficient
                         if (!isResolved) {
                             hasInsufficientQty = true;
-                            break;
+                            unresolvedRows.push(i);
+                            // DON'T break - continue checking all rows
                         }
                     }
                 }
             }
             
-            // Update button color
+            if (unresolvedRows.length > 0) {
+                console.log('Unresolved problematic rows: ' + unresolvedRows.join(', '));
+            }
+            
+            // Update button color and data attribute for reliable state checking
             const monitorBtn = document.getElementById('totalQuantityMonitorButton');
             if (hasInsufficientQty) {
                 monitorBtn.style.backgroundColor = '#ff4444';
                 monitorBtn.style.color = 'white';
                 monitorBtn.style.borderColor = '#cc0000';
+                monitorBtn.setAttribute('data-has-issues', 'true');
             } else {
                 monitorBtn.style.backgroundColor = '';
                 monitorBtn.style.color = '';
                 monitorBtn.style.borderColor = '';
+                monitorBtn.setAttribute('data-has-issues', 'false');
             }
+            
+            // IMPORTANT: Call checkCompleteButtonState after updating button color
+            // This ensures the QR input state is updated correctly
+            setTimeout(() => checkCompleteButtonState(), 50);
         }
         
         // Deduct REM QTY for new lot rows (row 3+, etc.) - these are NOT in MAIN_DB
@@ -2901,18 +3025,42 @@
         
         // Prepare for next kitting without resetting materials
         function prepareForNextKitting() {
-            // Hide and mark consumed any problematic rows that are ready to consume
+            // Update row 3 in Total Quantity Monitor with new spacer LOT NO data AFTER Kitting QR scan
+            // Then hide and mark consumed any problematic rows that are ready to consume
             for (let rowNo in problematicRowsScanned) {
                 const rowData = problematicRowsScanned[rowNo];
                 if (rowData.readyToConsume && !rowData.oldRowConsumed) {
-                    // Now hide the old row (row 3) after Kitting QR was scanned
-                    const oldRow = document.getElementById('row_' + rowNo);
-                    if (oldRow) {
-                        oldRow.style.display = 'none';
-                        console.log('Hidden old row ' + rowNo + ' after Kitting QR scan');
+                    // NOW update row 3 in Total Quantity Monitor with new spacer data
+                    // This happens AFTER Kitting QR code is scanned
+                    const origScanMaterial = document.getElementById('scanmaterial_' + rowNo);
+                    const origLotNo = document.getElementById('lot_' + rowNo);
+                    const origQty = document.getElementById('qty_' + rowNo);
+                    const origRemQty = document.getElementById('remqty_' + rowNo);
+                    const origGood = document.getElementById('good_' + rowNo);
+                    
+                    console.log('Updating row ' + rowNo + ' in Total Quantity Monitor with new spacer data after Kitting QR scan');
+                    
+                    if (origScanMaterial && rowData.newScanMaterial) {
+                        origScanMaterial.value = rowData.newScanMaterial;
                     }
-                    // Mark as consumed
+                    if (origLotNo && rowData.newLotNo) {
+                        origLotNo.value = rowData.newLotNo;
+                    }
+                    if (origQty && rowData.newScannedQty) {
+                        origQty.value = rowData.newScannedQty;
+                    }
+                    if (origRemQty && rowData.newRemQty !== undefined) {
+                        origRemQty.value = rowData.newRemQty;
+                    }
+                    if (origGood) {
+                        origGood.disabled = false;
+                        origGood.checked = true;
+                        handleGoodChange(parseInt(rowNo));
+                    }
+                    
+                    // Mark as consumed (row data has been updated, no need to hide)
                     rowData.oldRowConsumed = true;
+                    console.log('Row ' + rowNo + ' updated with new spacer LOT NO: ' + rowData.newLotNo);
                 }
             }
             
@@ -2937,22 +3085,73 @@
             // Generate new QR code for next kitting
             generateKittingQrCode();
             
-            // Reset QR scan input
+            // Reset QR scan input - will be properly enabled/disabled by checkCompleteButtonState
+            // which is called after loadRemainingQtyFromMainDb updates the UI
             const scanQrInput = document.getElementById('scanKittingQrInput');
             if (scanQrInput) {
                 scanQrInput.value = '';
-                scanQrInput.style.backgroundColor = '#ffffcc'; // Ready for next scan
-                scanQrInput.style.borderColor = '#ff9900';
-                scanQrInput.placeholder = 'Scan Kitting QR Code to save...';
-                scanQrInput.focus();
+                // Don't set styling here - let checkCompleteButtonState handle it
+                // based on whether there are problematic rows or not
             }
             
             console.log('Prepared for next kitting: ' + nextKittingNo);
             
             // Auto-save state after kitting completion
             saveStateToLocalStorage();
+            
+            // Check if this kitting has problematic rows (Total Quantity Monitor is RED)
+            // If NO problematic rows, clear the problematic_row table so next scan loads from kitting_summary
+            setTimeout(() => {
+                clearProblematicRowsIfNoIssues();
+            }, 500);
         }
-
+        
+        // Clear problematic_row table if there are no problematic rows in the current kitting
+        function clearProblematicRowsIfNoIssues() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            if (!jobOrder) return;
+            
+            // Check if Total Quantity Monitor button is RED (has problematic rows)
+            const monitorBtn = document.getElementById('totalQuantityMonitorButton');
+            const isRed = monitorBtn && (monitorBtn.style.backgroundColor === 'rgb(255, 68, 68)' || 
+                                         monitorBtn.style.backgroundColor === '#ff4444');
+            
+            // Also check if there are any "New LOT..." rows in the Kitting Summary
+            const tbody = document.getElementById('kittingSummaryBody');
+            const allRows = tbody ? tbody.querySelectorAll('tr') : [];
+            let hasNewLotRows = false;
+            allRows.forEach(tr => {
+                if (tr.id && tr.id.startsWith('kitting_newlot_')) {
+                    hasNewLotRows = true;
+                }
+                const cells = tr.querySelectorAll('td');
+                if (cells.length >= 5) {
+                    const lotNoText = cells[4].textContent || '';
+                    if (lotNoText.includes('New LOT')) {
+                        hasNewLotRows = true;
+                    }
+                }
+            });
+            
+            if (!isRed && !hasNewLotRows) {
+                // No problematic rows - clear the problematic_row table
+                console.log('No problematic rows detected - clearing problematic_row table for job order:', jobOrder);
+                fetch('/api/clear_problematic_rows', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ job_order: jobOrder })
+                }).then(r => r.json()).then(data => {
+                    if (data.success) {
+                        console.log('problematic_row table cleared for job order:', jobOrder);
+                    }
+                }).catch(e => console.log('Error clearing problematic_row table:', e));
+            } else {
+                console.log('Problematic rows exist - keeping problematic_row table data');
+                // Save current problematic rows to MySQL
+                checkAndSaveProblematicRows();
+            }
+        }
+        
         function updateKittingSummary() {
             const tbody = document.getElementById('kittingSummaryBody');
             
@@ -3028,7 +3227,8 @@
                         }
                         
                         // Old row not yet consumed - show it with old lot data
-                        displayQtyKit = rowTrackData.remainingQty || Math.round(parseFloat(remainingQty)) || qtyUnitInt;
+                        // QTY/KIT FORMULA: Use stored oldRowQtyKit = MIN(QTY/UNIT, REM_QTY)
+                        displayQtyKit = rowTrackData.oldRowQtyKit || rowTrackData.remainingQty || Math.round(parseFloat(remainingQty)) || qtyUnitInt;
                         if (rowTrackData.oldLotNo) {
                             displayLotNo = rowTrackData.oldLotNo;
                         }
@@ -3072,13 +3272,42 @@
                         }
                         
                         tbody.appendChild(savedRow);
+                        
+                        // Also restore additional rows (kitting_newlot_3_1, kitting_newlot_3_2, etc.)
+                        let additionalIdx = 1;
+                        while (true) {
+                            const additionalRowId = `kitting_newlot_${i}_${additionalIdx}`;
+                            if (savedNewLotRows[additionalRowId]) {
+                                const additionalSavedRow = savedNewLotRows[additionalRowId];
+                                // Update with tracked data if available
+                                const rowTrackData = problematicRowsScanned[i] || {};
+                                if (rowTrackData.additionalRows && rowTrackData.additionalRows[additionalIdx - 1]) {
+                                    const addRowData = rowTrackData.additionalRows[additionalIdx - 1];
+                                    const cells = additionalSavedRow.querySelectorAll('td');
+                                    if (cells.length >= 6 && addRowData.scanned) {
+                                        if (addRowData.scanMaterial) cells[3].textContent = addRowData.scanMaterial;
+                                        if (addRowData.lotNo) {
+                                            cells[4].textContent = addRowData.lotNo;
+                                            cells[4].style.color = '';
+                                            cells[4].style.fontStyle = '';
+                                        }
+                                        if (addRowData.qtyKit) cells[5].textContent = addRowData.qtyKit;
+                                    }
+                                }
+                                tbody.appendChild(additionalSavedRow);
+                                additionalIdx++;
+                            } else {
+                                break;
+                            }
+                        }
                     } else if (isProblematic) {
                         // Create new lot row if it doesn't exist yet but this is a problematic row
                         const rowTrackData = problematicRowsScanned[i] || {};
                         const newScanMaterial = rowTrackData.newScanMaterial || document.getElementById('newscanmaterial_' + i)?.value || '';
                         const newLotNo = rowTrackData.newLotNo || document.getElementById('newlot_' + i)?.value || '';
-                        const newQty = rowTrackData.newQty || '';
-                        const neededQty = rowTrackData.qtyUnit - rowTrackData.remainingQty;
+                        // QTY/KIT should be BLANK until new LOT NO is scanned
+                        // Only show QTY/KIT value if the new lot has been scanned - use actual scanned QTY from QR code
+                        const newQty = rowTrackData.scanned ? (rowTrackData.newQty || rowTrackData.newScannedQty || '') : '';
                         // Always use stored qtyUnit from problematicRowsScanned for new lot row
                         const newLotQtyUnit = rowTrackData.qtyUnit || qtyUnitInt;
                         
@@ -3091,15 +3320,41 @@
                             <td>${newLotQtyUnit}</td>
                             <td>${newScanMaterial || ''}</td>
                             <td style="${newLotNo ? '' : 'color: #999; font-style: italic;'}">${newLotNo || 'New LOT...'}</td>
-                            <td id="kitting_newqty_${i}">${newQty || neededQty || ''}</td>
+                            <td id="kitting_newqty_${i}">${newQty}</td>
                         `;
                         tbody.appendChild(newSummaryRow);
+                        
+                        // Also restore additional rows from saved
+                        let additionalIdx = 1;
+                        while (true) {
+                            const additionalRowId = `kitting_newlot_${i}_${additionalIdx}`;
+                            if (savedNewLotRows[additionalRowId]) {
+                                const additionalSavedRow = savedNewLotRows[additionalRowId];
+                                if (rowTrackData.additionalRows && rowTrackData.additionalRows[additionalIdx - 1]) {
+                                    const addRowData = rowTrackData.additionalRows[additionalIdx - 1];
+                                    const cells = additionalSavedRow.querySelectorAll('td');
+                                    if (cells.length >= 6 && addRowData.scanned) {
+                                        if (addRowData.scanMaterial) cells[3].textContent = addRowData.scanMaterial;
+                                        if (addRowData.lotNo) {
+                                            cells[4].textContent = addRowData.lotNo;
+                                            cells[4].style.color = '';
+                                            cells[4].style.fontStyle = '';
+                                        }
+                                        if (addRowData.qtyKit) cells[5].textContent = addRowData.qtyKit;
+                                    }
+                                }
+                                tbody.appendChild(additionalSavedRow);
+                                additionalIdx++;
+                            } else {
+                                break;
+                            }
+                        }
                     }
                 }
             }
             
-            // Save kitting summary to MySQL database
-            saveKittingSummaryToDb();
+            // DO NOT save kitting_summary here - it's now saved in autoCompleteKitting()
+            // BEFORE prepareForNextKitting() to ensure correct data is captured
         }
         
         function saveKittingSummaryToDb() {
@@ -3118,14 +3373,62 @@
                 // Now has 6 columns: #, MTRL DESC, QTY/Unit, SCAN MTRL, LOT NO, QTY/Kit
                 if (cells.length >= 6) {
                     const rowNum = parseInt(cells[0].textContent) || 0;
+                    let scanMaterial = cells[3].textContent || '';
+                    let lotNo = cells[4].textContent === 'New LOT...' ? '' : (cells[4].textContent || '');
+                    let qtyKit = parseInt(cells[5].textContent) || 0;
+                    
+                    // For problematic rows, also check problematicRowsScanned for data
+                    // This ensures we capture the correct data even if cells are empty
+                    // IMPORTANT: Only override values if they are empty - browser cells have priority
+                    const rowData = problematicRowsScanned[rowNum];
+                    if (rowData) {
+                        // Check for excess data first (from autoPopulateExcessLot)
+                        // Only use for LOT NO and SCAN MATERIAL if cells are empty
+                        // QTY/Kit should ALWAYS come from browser cells (not excessQty which is LOT QTY)
+                        if (rowData.excessLotNo && !lotNo) {
+                            lotNo = rowData.excessLotNo;
+                            scanMaterial = document.getElementById('scanmaterial_' + rowNum)?.value || scanMaterial;
+                            // DO NOT override qtyKit with excessQty - browser cell value is correct
+                            console.log('Using excess LOT data for row ' + rowNum + ': LOT=' + lotNo + ', QTY/Kit=' + qtyKit + ' (from browser)');
+                        }
+                        // Check for old lot data
+                        else if (rowData.oldLotNo && !lotNo) {
+                            lotNo = rowData.oldLotNo;
+                            scanMaterial = rowData.oldScanMaterial || scanMaterial;
+                            // Only use oldRowQtyKit if browser cell is empty
+                            if (!qtyKit) qtyKit = rowData.oldRowQtyKit || qtyKit;
+                            console.log('Using old lot data for row ' + rowNum + ': LOT=' + lotNo + ', QTY/Kit=' + qtyKit);
+                        }
+                        // Check for new lot data
+                        else if (rowData.newLotNo && !lotNo) {
+                            lotNo = rowData.newLotNo;
+                            scanMaterial = rowData.newScanMaterial || scanMaterial;
+                            // Only use newScannedQty if browser cell is empty
+                            if (!qtyKit) qtyKit = parseInt(rowData.newScannedQty) || qtyKit;
+                            console.log('Using new lot data for row ' + rowNum + ': LOT=' + lotNo + ', QTY/Kit=' + qtyKit);
+                        }
+                    }
+                    
+                    // Also check Total Quantity Monitor inputs as fallback for SCAN MATERIAL and LOT NO only
+                    // IMPORTANT: Do NOT use TQM qty for qtyKit - that's LOT QTY, not QTY/Kit
+                    // QTY/Kit should ALWAYS come from browser cells (cells[5])
+                    if (!scanMaterial || !lotNo) {
+                        const tqmScanMaterial = document.getElementById('scanmaterial_' + rowNum)?.value || '';
+                        const tqmLotNo = document.getElementById('lot_' + rowNum)?.value || '';
+                        
+                        if (tqmScanMaterial && !scanMaterial) scanMaterial = tqmScanMaterial;
+                        if (tqmLotNo && !lotNo) lotNo = tqmLotNo;
+                        // DO NOT use tqmQty for qtyKit - it's LOT QTY (e.g., 20), not QTY/Kit (e.g., 6)
+                    }
+                    
                     rows.push({
                         row_no: rowNum,
                         material_description: cells[1].getAttribute('title') || cells[1].textContent || '',
                         material_code: '',
                         qty_unit: parseInt(cells[2].textContent) || 0,
-                        scan_material: cells[3].textContent || '',
-                        lot_no: cells[4].textContent === 'New LOT...' ? '' : (cells[4].textContent || ''),
-                        qty_kit: parseInt(cells[5].textContent) || 0
+                        scan_material: scanMaterial,
+                        lot_no: lotNo,
+                        qty_kit: qtyKit
                     });
                 }
             });
@@ -3150,8 +3453,140 @@
             }).then(r => r.json()).then(data => {
                 if (data.success) {
                     console.log('Kitting summary saved to MySQL');
+                    
+                    // Also check if there are problematic rows (new lot rows) and save them
+                    checkAndSaveProblematicRows();
                 }
             }).catch(e => console.log('Error saving kitting summary:', e));
+        }
+        
+        // Check if there are problematic rows in the current Kitting Summary and save them
+        function checkAndSaveProblematicRows() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            const modelCode = document.getElementById('modelCodeInput').value;
+            
+            if (!jobOrder) return;
+            
+            const tbody = document.getElementById('kittingSummaryBody');
+            const allRows = tbody.querySelectorAll('tr');
+            
+            // Check if there are any new lot rows (problematic rows indicator)
+            let hasProblematicRows = false;
+            
+            // Method 1: Check if Total Quantity Monitor button is RED
+            const monitorBtn = document.getElementById('totalQuantityMonitorButton');
+            if (monitorBtn && (monitorBtn.style.backgroundColor === 'rgb(255, 68, 68)' || 
+                               monitorBtn.style.backgroundColor === '#ff4444')) {
+                hasProblematicRows = true;
+                console.log('Problematic rows detected via Total Quantity Monitor button (RED)');
+            }
+            
+            // Method 2: Check for new lot row IDs or "New LOT..." text
+            allRows.forEach(tr => {
+                if (tr.id && tr.id.startsWith('kitting_newlot_')) {
+                    hasProblematicRows = true;
+                }
+                // Also check for "New LOT..." text in lot_no column
+                const cells = tr.querySelectorAll('td');
+                if (cells.length >= 5) {
+                    const lotNoText = cells[4].textContent || '';
+                    if (lotNoText.includes('New LOT')) {
+                        hasProblematicRows = true;
+                    }
+                }
+            });
+            
+            if (!hasProblematicRows) {
+                console.log('No problematic rows detected in UI - NOT clearing problematic_row table');
+                // Don't clear problematic_row table automatically - data should persist
+                // It will only be cleared when kitting is completed or explicitly requested
+                return;
+            }
+            
+            console.log('Problematic rows detected - saving to problematic_row table');
+            
+            // Collect all rows with is_new_lot_row and parent_row_no info
+            const rows = [];
+            allRows.forEach(tr => {
+                const cells = tr.querySelectorAll('td');
+                if (cells.length >= 6) {
+                    const rowNum = parseInt(cells[0].textContent) || 0;
+                    const isNewLotRow = (tr.id && tr.id.startsWith('kitting_newlot_')) || 
+                                        (cells[4].textContent && cells[4].textContent.includes('New LOT'));
+                    const parentRowNo = isNewLotRow ? rowNum : null;
+                    
+                    rows.push({
+                        row_no: rowNum,
+                        material_description: cells[1].getAttribute('title') || cells[1].textContent || '',
+                        material_code: '',
+                        qty_unit: parseInt(cells[2].textContent) || 0,
+                        scan_material: cells[3].textContent || '',
+                        lot_no: (cells[4].textContent === 'New LOT...' || cells[4].textContent.includes('New LOT')) ? '' : (cells[4].textContent || ''),
+                        qty_kit: parseInt(cells[5].textContent) || 0,
+                        is_new_lot_row: isNewLotRow ? 1 : 0,
+                        parent_row_no: parentRowNo
+                    });
+                }
+            });
+            
+            if (rows.length === 0) return;
+            
+            fetch('/api/save_problematic_rows', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    job_order: jobOrder,
+                    model_code: modelCode,
+                    rows: rows
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    console.log('Problematic rows saved to MySQL');
+                }
+            }).catch(e => console.log('Error saving problematic rows:', e));
+        }
+        
+        // New function: Load from database first, only update from form if no data exists
+        function loadKittingSummaryFromDbOrUpdate() {
+            const jobOrder = document.getElementById('jobOrderInput').value;
+            if (!jobOrder) {
+                updateKittingSummary();
+                return;
+            }
+            
+            // Check if problematic_row has data first
+            fetch(`/api/has_problematic_rows?job_order=${encodeURIComponent(jobOrder)}`)
+                .then(r => r.json())
+                .then(checkData => {
+                    console.log('loadKittingSummaryFromDbOrUpdate: has_problematic_rows =', checkData.has_problematic_rows);
+                    if (checkData.success && checkData.has_problematic_rows) {
+                        // Load from problematic_row table
+                        console.log('>>> Loading from problematic_row table');
+                        loadFromProblematicRowTable(jobOrder);
+                    } else {
+                        // Check if kitting_summary has data
+                        fetch(`/api/get_kitting_summary?job_order=${encodeURIComponent(jobOrder)}`)
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.success && data.data && data.data.length > 0) {
+                                    console.log('>>> Loading from kitting_summary table');
+                                    loadFromKittingSummaryTable(jobOrder);
+                                } else {
+                                    // No database data - use updateKittingSummary to build from form
+                                    console.log('>>> No database data - building from form');
+                                    updateKittingSummary();
+                                }
+                            })
+                            .catch(e => {
+                                console.log('Error checking kitting_summary:', e);
+                                updateKittingSummary();
+                            });
+                    }
+                })
+                .catch(e => {
+                    console.log('Error checking problematic_rows:', e);
+                    updateKittingSummary();
+                });
         }
         
         function loadKittingSummaryFromDb() {
@@ -3161,15 +3596,102 @@
             // Also load suffix and quantity from joborder_plan
             loadSuffixAndQuantityFromJoborderPlan(jobOrder);
             
+            // First check if there are problematic rows - if yes, load from problematic_row table
+            // Otherwise load from kitting_summary table
+            console.log('loadKittingSummaryFromDb: Checking for problematic rows for job order:', jobOrder);
+            fetch(`/api/has_problematic_rows?job_order=${encodeURIComponent(jobOrder)}`)
+                .then(r => r.json())
+                .then(checkData => {
+                    console.log('has_problematic_rows API response:', checkData);
+                    if (checkData.success && checkData.has_problematic_rows) {
+                        // Load from problematic_row table
+                        console.log('>>> Problematic rows detected - loading from problematic_row table');
+                        loadFromProblematicRowTable(jobOrder);
+                    } else {
+                        // Load from kitting_summary table
+                        console.log('>>> No problematic rows - loading from kitting_summary table');
+                        loadFromKittingSummaryTable(jobOrder);
+                    }
+                })
+                .catch(e => {
+                    console.log('Error checking problematic rows:', e);
+                    // Fallback to kitting_summary
+                    loadFromKittingSummaryTable(jobOrder);
+                });
+        }
+        
+        // Load from problematic_row table (when there are problematic rows)
+        function loadFromProblematicRowTable(jobOrder) {
+            fetch(`/api/get_problematic_rows?job_order=${encodeURIComponent(jobOrder)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data && data.data.length > 0) {
+                        console.log('Loading from problematic_row table:', data.data.length, 'rows');
+                        
+                        const tbody = document.getElementById('kittingSummaryBody');
+                        tbody.innerHTML = '';
+                        
+                        data.data.forEach(record => {
+                            const row = document.createElement('tr');
+                            
+                            // Check is_new_lot_row (can be 1 or true)
+                            const isNewLotRow = record.is_new_lot_row === 1 || record.is_new_lot_row === true;
+                            
+                            // Set row ID based on whether it's a new lot row or not
+                            if (isNewLotRow) {
+                                row.id = `kitting_newlot_${record.parent_row_no || record.row_no}`;
+                                row.style.backgroundColor = '#ffffcc'; // Light yellow for new lot row
+                                console.log('New lot row found: row_no=' + record.row_no + ', parent_row_no=' + record.parent_row_no);
+                            } else {
+                                row.id = `kitting_row_${record.row_no}`;
+                                // Check if this row has a corresponding new lot row (is problematic)
+                                const hasNewLotRow = data.data.some(r => (r.is_new_lot_row === 1 || r.is_new_lot_row === true) && r.parent_row_no === record.row_no);
+                                if (hasNewLotRow) {
+                                    row.style.backgroundColor = '#ffcccc'; // Red for problematic row
+                                    console.log('Problematic row found: row_no=' + record.row_no);
+                                }
+                            }
+                            
+                            const shortDesc = record.material_description && record.material_description.length > 25 ? 
+                                record.material_description.substring(0, 25) + '...' : (record.material_description || '');
+                            
+                            const qtyUnitDisplay = record.qty_unit !== null && record.qty_unit !== undefined ? record.qty_unit : '';
+                            const qtyKitDisplay = record.qty_kit !== null && record.qty_kit !== undefined ? record.qty_kit : '';
+                            
+                            // For new lot rows with empty lot_no, show "New LOT..." placeholder
+                            const lotNoDisplay = isNewLotRow && !record.lot_no ? 
+                                '<span style="color: #999; font-style: italic;">New LOT...</span>' : (record.lot_no || '');
+                            
+                            row.innerHTML = `
+                                <td>${record.row_no}</td>
+                                <td title="${record.material_description || ''}">${shortDesc}</td>
+                                <td>${qtyUnitDisplay}</td>
+                                <td>${record.scan_material || ''}</td>
+                                <td>${lotNoDisplay}</td>
+                                <td>${qtyKitDisplay}</td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    } else {
+                        console.log('No problematic rows found - falling back to kitting_summary');
+                        loadFromKittingSummaryTable(jobOrder);
+                    }
+                })
+                .catch(e => {
+                    console.log('Error loading problematic rows:', e);
+                    loadFromKittingSummaryTable(jobOrder);
+                });
+        }
+        
+        // Load from kitting_summary table (normal case - no problematic rows)
+        function loadFromKittingSummaryTable(jobOrder) {
             fetch(`/api/get_kitting_summary?job_order=${encodeURIComponent(jobOrder)}`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.success && data.data && data.data.length > 0) {
                         console.log('Loading kitting summary from MySQL:', data.data.length, 'rows');
                     } else {
-                        // MySQL is empty - clear localStorage to sync
-                        console.log('MySQL kitting_summary is empty - clearing localStorage');
-                        localStorage.removeItem('kittingSummaryState');
+                        console.log('MySQL kitting_summary is empty');
                         return;
                     }
                     
@@ -3199,6 +3721,17 @@
                             `;
                             tbody.appendChild(row);
                         });
+                        
+                        // After loading, check if Total Quantity Monitor button is RED
+                        // If so, there are problematic rows that need to be saved
+                        setTimeout(() => {
+                            const monitorBtn = document.getElementById('totalQuantityMonitorButton');
+                            if (monitorBtn && (monitorBtn.style.backgroundColor === 'rgb(255, 68, 68)' || 
+                                               monitorBtn.style.backgroundColor === '#ff4444')) {
+                                console.log('Total Quantity Monitor is RED after load - saving problematic rows');
+                                checkAndSaveProblematicRows();
+                            }
+                        }, 500);
                     }
                 })
                 .catch(e => console.log('Error loading kitting summary:', e));
@@ -3227,10 +3760,123 @@
                 .catch(e => console.log('Error loading from joborder_plan:', e));
         }
 
+        // Check if total QTY/Kit > QTY/Unit for problematic rows (SPACER etc.)
+        // Also auto-populate Total Quantity Monitor with excess LOT data
+        function checkQtyKitComplete() {
+            const tbody = document.getElementById('kittingSummaryBody');
+            if (!tbody) return false;
+            
+            const rows = tbody.querySelectorAll('tr');
+            // { rowNo: { expected: qtyUnit, total: 0, entries: [{lotNo, qtyKit, scanMaterial}] } }
+            const rowGroups = {};
+            
+            rows.forEach(tr => {
+                const cells = tr.querySelectorAll('td');
+                if (cells.length >= 6) {
+                    const rowNo = parseInt(cells[0].textContent) || 0;
+                    const qtyUnit = parseInt(cells[2].textContent) || 0;
+                    const scanMaterial = cells[3].textContent || '';
+                    const lotNo = cells[4].textContent || '';
+                    const qtyKit = parseInt(cells[5].textContent) || 0;
+                    
+                    if (!rowGroups[rowNo]) {
+                        rowGroups[rowNo] = { expected: qtyUnit, total: 0, entries: [] };
+                    }
+                    rowGroups[rowNo].total += qtyKit;
+                    rowGroups[rowNo].entries.push({ lotNo, qtyKit, scanMaterial });
+                }
+            });
+            
+            // Check if ALL problematic rows have total QTY/Kit > expected QTY/Unit
+            let allProblematicComplete = true;
+            let hasProblematicRows = false;
+            
+            for (let rowNo in problematicRowsScanned) {
+                hasProblematicRows = true;
+                if (rowGroups[rowNo]) {
+                    const excess = rowGroups[rowNo].total - rowGroups[rowNo].expected;
+                    if (excess > 0) {
+                        console.log('Problematic row ' + rowNo + ' QTY/Kit COMPLETE: ' + rowGroups[rowNo].total + ' > ' + rowGroups[rowNo].expected + ' (EXCESS: ' + excess + ')');
+                        
+                        // Find the LOT with excess and auto-populate Total Quantity Monitor
+                        autoPopulateExcessLot(rowNo, rowGroups[rowNo], excess);
+                    } else {
+                        console.log('Problematic row ' + rowNo + ' QTY/Kit INCOMPLETE: ' + rowGroups[rowNo].total + ' <= ' + rowGroups[rowNo].expected);
+                        allProblematicComplete = false;
+                    }
+                } else {
+                    allProblematicComplete = false;
+                }
+            }
+            
+            // Return true only if there are problematic rows AND all are complete
+            return hasProblematicRows && allProblematicComplete;
+        }
+        
+        // Auto-populate Total Quantity Monitor with excess LOT data
+        function autoPopulateExcessLot(rowNo, rowGroup, excess) {
+            // Find the last entry (most recent scan) which has the excess
+            const entries = rowGroup.entries;
+            if (entries.length === 0) return;
+            
+            // Find the entry with the largest QTY/Kit (likely the excess LOT)
+            let excessEntry = entries[entries.length - 1]; // Default to last entry
+            for (let i = entries.length - 1; i >= 0; i--) {
+                if (entries[i].qtyKit >= excess) {
+                    excessEntry = entries[i];
+                    break;
+                }
+            }
+            
+            const excessLotNo = excessEntry.lotNo;
+            const excessScanMaterial = excessEntry.scanMaterial;
+            const excessQtyKit = excessEntry.qtyKit;
+            
+            console.log('Auto-populating row ' + rowNo + ' with EXCESS LOT: ' + excessLotNo + ', LOT QTY: ' + excessQtyKit + ', REM QTY: ' + excess);
+            
+            // Update Total Quantity Monitor fields for this row
+            const scanMaterialInput = document.getElementById('scanmaterial_' + rowNo);
+            const lotNoInput = document.getElementById('lot_' + rowNo);
+            const qtyInput = document.getElementById('qty_' + rowNo);
+            const remainingQtyInput = document.getElementById('remaining_qty_' + rowNo);
+            
+            if (scanMaterialInput && excessScanMaterial) {
+                scanMaterialInput.value = excessScanMaterial;
+            }
+            if (lotNoInput && excessLotNo && !excessLotNo.includes('New LOT')) {
+                lotNoInput.value = excessLotNo;
+            }
+            if (qtyInput) {
+                qtyInput.value = excessQtyKit;
+            }
+            if (remainingQtyInput) {
+                remainingQtyInput.value = excess;
+            }
+            
+            // Also update problematicRowsScanned with excess data for saving
+            if (problematicRowsScanned[rowNo]) {
+                problematicRowsScanned[rowNo].excessLotNo = excessLotNo;
+                problematicRowsScanned[rowNo].excessQty = excessQtyKit;
+                problematicRowsScanned[rowNo].excessRemQty = excess;
+            }
+        }
+
         function checkCompleteButtonState() {
-            const completeBtn = document.getElementById('completeBtn');
+            // Note: The COMPLETE button is actually the submitBtn element
+            const completeBtn = document.getElementById('submitBtn');
+            const scanQrInput = document.getElementById('scanKittingQrInput');
+            
+            // Early return if elements don't exist yet
+            if (!completeBtn || !scanQrInput) {
+                console.log('checkCompleteButtonState: Elements not ready yet (completeBtn=' + !!completeBtn + ', scanQrInput=' + !!scanQrInput + ')');
+                return;
+            }
+            
             let allGood = true;
             let hasAnyData = false;
+            let failReason = '';
+            
+            console.log('=== checkCompleteButtonState START ===');
             
             for (let i = 1; i <= currentRowCount; i++) {
                 const mtrlDesc = document.getElementById(`material_${i}`).value;
@@ -3240,39 +3886,114 @@
                     hasAnyData = true;
                     if (!checkbox.checked) {
                         allGood = false;
+                        failReason = 'Row ' + i + ' GOOD checkbox not checked';
+                        console.log('FAIL: ' + failReason);
                     }
                 }
             }
             
-            // Also check if all new lot rows (from problematic rows) have been scanned
-            for (let rowNo in problematicRowsScanned) {
-                const rowData = problematicRowsScanned[rowNo];
-                // If this problematic row has a new lot row, check if it's been scanned
-                const newLotInput = document.getElementById('newlot_' + rowNo);
-                const newGoodCheckbox = document.getElementById('newgood_' + rowNo);
-                
-                if (newLotInput && !newLotInput.value) {
-                    // New lot row exists but hasn't been scanned yet
-                    allGood = false;
-                    console.log('New lot row ' + rowNo + ' not yet scanned');
+            // Check if Total Quantity Monitor button has issues (using data attribute for reliability)
+            const monitorBtn = document.getElementById('totalQuantityMonitorButton');
+            // Use data attribute first (most reliable), fallback to color check
+            // IMPORTANT: If attribute is null (not set), default to false (no issues)
+            const hasIssuesAttr = monitorBtn ? monitorBtn.getAttribute('data-has-issues') : null;
+            const bgColor = monitorBtn ? monitorBtn.style.backgroundColor : '';
+            const isRedByColor = bgColor === 'rgb(255, 68, 68)' || bgColor === '#ff4444';
+            // Only consider monitor red if EXPLICITLY set to 'true' OR if background is red
+            // If attribute is null or 'false', monitor is NOT red
+            const isMonitorRed = hasIssuesAttr === 'true' || isRedByColor;
+            console.log('Total Quantity Monitor has issues: ' + isMonitorRed + ' (attr=' + hasIssuesAttr + ', bgColor=' + bgColor + ', isRedByColor=' + isRedByColor + ')');
+            
+            // If monitor is NOT red, all problematic rows are resolved - skip all problematic row checks
+            if (isMonitorRed) {
+                allGood = false;
+                failReason = 'Total Quantity Monitor is red';
+                console.log('FAIL: ' + failReason);
+            }
+            
+            // Only check problematic rows if monitor is still red
+            // If monitor is NOT red, it means all problematic rows have been resolved with excess quantity
+            const resolvedRowNumbers = [];
+            if (!isMonitorRed) {
+                // All problematic rows are resolved - add all to resolved list
+                for (let rowNo in problematicRowsScanned) {
+                    resolvedRowNumbers.push(rowNo);
+                }
+                console.log('Monitor NOT red - all problematic rows considered resolved: ' + resolvedRowNumbers.join(','));
+            }
+            
+            // If monitor is NOT red, skip all problematic row checks - they are all resolved
+            if (!isMonitorRed) {
+                console.log('Monitor NOT red - skipping all problematic row and DOM checks');
+            } else {
+                // Monitor is red - check problematic rows
+                for (let rowNo in problematicRowsScanned) {
+                    const rowData = problematicRowsScanned[rowNo];
+                    // Check if main new lot row is scanned
+                    if (!rowData.scanned) {
+                        allGood = false;
+                        failReason = 'Problematic row ' + rowNo + ' main new lot not scanned';
+                        console.log('FAIL: ' + failReason);
+                    }
                 }
                 
-                if (newGoodCheckbox && !newGoodCheckbox.checked) {
-                    // New lot row exists but GOOD checkbox not checked
-                    allGood = false;
-                    console.log('New lot row ' + rowNo + ' GOOD not checked');
+                // Check Kitting Summary DOM for unscanned new lot rows
+                const kittingSummaryBody = document.getElementById('kittingSummaryBody');
+                if (kittingSummaryBody) {
+                    const newLotRows = kittingSummaryBody.querySelectorAll('tr[id^="kitting_newlot_"]');
+                    console.log('Checking ' + newLotRows.length + ' new lot rows in Kitting Summary');
+                    newLotRows.forEach(row => {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 5) {
+                            const lotNoCell = cells[4];
+                            const lotNoText = lotNoCell ? lotNoCell.textContent.trim() : '';
+                            if (lotNoCell && (lotNoText.includes('New LOT') || lotNoText === '')) {
+                                allGood = false;
+                                failReason = 'Kitting Summary has unscanned new lot row: ' + row.id;
+                                console.log('FAIL: ' + failReason);
+                            }
+                        }
+                    });
                 }
             }
             
-            const scanQrInput = document.getElementById('scanKittingQrInput');
+            console.log('=== checkCompleteButtonState END: allGood=' + allGood + ', hasAnyData=' + hasAnyData + ' ===');
             
-            if (allGood && hasAnyData) {
-                // Enable QR scan input when all materials are scanned
+            // Check if total QTY/Kit > QTY/Unit for problematic rows (enables QR scan even if monitor is red)
+            const qtyKitComplete = checkQtyKitComplete();
+            console.log('QTY/Kit Complete check: ' + qtyKitComplete);
+            
+            // IMPORTANT: If Total Quantity Monitor is RED, ALWAYS disable BOTH QR scan AND COMPLETE button
+            // This ensures user must resolve ALL problematic rows before scanning/completing
+            if (isMonitorRed) {
+                // Monitor is RED - disable QR input AND COMPLETE button
+                scanQrInput.disabled = true;
+                scanQrInput.placeholder = 'Resolve all problematic rows first...';
+                scanQrInput.value = '';
+                scanQrInput.style.backgroundColor = '';
+                scanQrInput.style.borderColor = '#ff4444'; // Red border to match monitor
+                kittingQrScanned = false;
+                
+                // Also disable COMPLETE button when monitor is RED
+                completeBtn.disabled = true;
+                completeBtn.style.backgroundColor = '#cccccc';
+                completeBtn.style.cursor = 'not-allowed';
+                console.log('QR scan AND COMPLETE DISABLED - Total Quantity Monitor is RED');
+            } else if ((allGood && hasAnyData) || qtyKitComplete) {
+                // Enable QR scan input when all materials are scanned OR when total QTY/Kit > QTY/Unit
+                console.log('>>> ENABLING QR INPUT: allGood=' + allGood + ', hasAnyData=' + hasAnyData + ', qtyKitComplete=' + qtyKitComplete);
                 scanQrInput.disabled = false;
+                scanQrInput.removeAttribute('disabled'); // Also remove the HTML attribute
                 scanQrInput.placeholder = 'Scan Kitting QR Code to save...';
-                scanQrInput.style.backgroundColor = '#ffffcc'; // Light yellow to indicate ready
-                scanQrInput.style.borderColor = '#ff9900';
+                // Use cssText to set styles with !important to override any other styles
+                scanQrInput.style.cssText = 'padding: 12px 20px; border: 3px solid #ff9900 !important; border-radius: 5px; width: 300px; font-size: 16px; font-weight: bold; background-color: #ffffcc !important;';
+                console.log('>>> QR INPUT STYLED: disabled=' + scanQrInput.disabled + ', bgColor=' + scanQrInput.style.backgroundColor);
                 scanQrInput.focus();
+                
+                // Enable COMPLETE button
+                completeBtn.disabled = false;
+                completeBtn.style.backgroundColor = '#9370db';
+                completeBtn.style.cursor = 'pointer';
             } else {
                 // Disable QR input
                 scanQrInput.disabled = true;
@@ -3281,6 +4002,11 @@
                 scanQrInput.style.backgroundColor = '';
                 scanQrInput.style.borderColor = '#9370db';
                 kittingQrScanned = false;
+                
+                // Disable COMPLETE button
+                completeBtn.disabled = true;
+                completeBtn.style.backgroundColor = '#cccccc';
+                completeBtn.style.cursor = 'not-allowed';
             }
         }
 
@@ -3335,17 +4061,27 @@
                             const remainingQty = parseInt(record.remaining_qty) || 0;
                             
                             // Populate remaining_qty
+                            // BUT skip if this row has excess data from autoPopulateExcessLot()
                             const remainingQtyInput = document.getElementById('remaining_qty_' + rowNo);
                             if (remainingQtyInput) {
-                                remainingQtyInput.value = record.remaining_qty || '';
-                                console.log('Row ' + rowNo + ' REMAINING QTY: ' + record.remaining_qty);
+                                // Check if this row has excess data that should NOT be overwritten
+                                const hasExcessData = problematicRowsScanned[rowNo] && problematicRowsScanned[rowNo].excessRemQty !== undefined;
+                                if (!hasExcessData) {
+                                    remainingQtyInput.value = record.remaining_qty || '';
+                                    console.log('Row ' + rowNo + ' REMAINING QTY: ' + record.remaining_qty);
+                                } else {
+                                    console.log('Row ' + rowNo + ' SKIPPED - has excess REM QTY: ' + problematicRowsScanned[rowNo].excessRemQty);
+                                }
                             }
                             
                             // Check if REM QTY < QTY (insufficient quantity)
                             // Only check if remaining_qty has a valid value (not empty)
                             const hasValidRemQty = record.remaining_qty !== null && record.remaining_qty !== undefined && record.remaining_qty !== '';
                             
-                            if (qtyUnit > 0 && hasValidRemQty && remainingQty < qtyUnit) {
+                            // Check if this row has excess data that resolves the insufficient quantity
+                            const hasExcessData = problematicRowsScanned[rowNo] && problematicRowsScanned[rowNo].excessRemQty !== undefined;
+                            
+                            if (qtyUnit > 0 && hasValidRemQty && remainingQty < qtyUnit && !hasExcessData) {
                                 // Check if this problematic row has been resolved (new lot scanned)
                                 const newLotInput = document.getElementById('newlot_' + rowNo);
                                 const newGoodCheckbox = document.getElementById('newgood_' + rowNo);
@@ -3401,58 +4137,97 @@
             
             // Track this row as problematic for scan logic - only if not already tracked
             if (!problematicRowsScanned[rowNo]) {
+                const qtyUnit = parseInt(record.qty_unit) || 0;
+                const remainingQty = parseInt(record.remaining_qty) || 0;
+                
+                // QTY/KIT FORMULA: MIN(QTY/UNIT, REM_QTY)
+                const oldRowQtyKit = Math.min(qtyUnit, remainingQty);
+                const newRowQtyKit = qtyUnit - oldRowQtyKit;
+                
                 problematicRowsScanned[rowNo] = {
                     materialCode: materialCode,
                     scanned: false,
-                    qtyUnit: parseInt(record.qty_unit) || 0,
-                    remainingQty: parseInt(record.remaining_qty) || 0
+                    qtyUnit: qtyUnit,
+                    remainingQty: remainingQty,
+                    oldRowQtyKit: oldRowQtyKit,  // QTY/KIT for old row = MIN(QTY/UNIT, REM_QTY)
+                    newRowQtyKit: newRowQtyKit   // QTY/KIT for new row = QTY/UNIT - oldRowQtyKit
                 };
-                console.log('insertNewLotRowInKittingSummaryAfterScan: Registered NEW problematic row ' + rowNo);
+                console.log('insertNewLotRowInKittingSummaryAfterScan: Registered NEW problematic row ' + rowNo + ', oldQtyKit: ' + oldRowQtyKit + ', newQtyKit: ' + newRowQtyKit);
             } else {
                 console.log('insertNewLotRowInKittingSummaryAfterScan: Row ' + rowNo + ' already tracked, scanned=' + problematicRowsScanned[rowNo].scanned);
             }
             console.log('Registered problematic row ' + rowNo + ' with materialCode: ' + materialCode);
             
-            // Find the row in Kitting Summary by index (rowNo - 1)
-            const summaryRows = kittingSummaryBody.querySelectorAll('tr:not([id^="kitting_newlot_"])');
-            const targetRowIndex = rowNo - 1; // 0-indexed
+            // Find the ORIGINAL row in Kitting Summary by looking for kitting_row_{rowNo}
+            let targetRow = document.getElementById(`kitting_row_${rowNo}`);
             
-            console.log('Looking for row ' + rowNo + ' in Kitting Summary, found ' + summaryRows.length + ' rows');
+            // If not found by ID, try to find by row number in first cell
+            if (!targetRow) {
+                const allRows = kittingSummaryBody.querySelectorAll('tr:not([id^="kitting_newlot_"])');
+                for (let row of allRows) {
+                    const firstCell = row.querySelector('td:first-child');
+                    if (firstCell && parseInt(firstCell.textContent) === rowNo) {
+                        targetRow = row;
+                        break;
+                    }
+                }
+            }
             
-            // Create new row for Kitting Summary
-            const shortDesc = record.material_description ? 
-                (record.material_description.length > 25 ? record.material_description.substring(0, 25) + '...' : record.material_description) : '';
-            const qtyUnitInt = record.qty_unit ? Math.round(parseFloat(record.qty_unit)) : '';
-            // Calculate the needed QTY for new lot row: QTY - REM QTY (e.g., 6 - 2 = 4)
-            const neededQty = qtyUnitInt - (parseInt(record.remaining_qty) || 0);
+            if (!targetRow) {
+                console.log('Target row not found in Kitting Summary for row ' + rowNo);
+                return;
+            }
+            
+            // GET MTRL DESC AND QTY FROM THE ORIGINAL ROW IN KITTING SUMMARY (not from record)
+            const targetCells = targetRow.querySelectorAll('td');
+            const originalMtrlDesc = targetCells[1] ? (targetCells[1].getAttribute('title') || targetCells[1].textContent || '') : '';
+            const originalQtyUnit = targetCells[2] ? (parseInt(targetCells[2].textContent) || 0) : 0;
+            
+            // Get remaining qty from record
+            const remainingQty = parseInt(record.remaining_qty) || 0;
+            
+            // QTY/KIT FORMULA: MIN(QTY/UNIT, REM_QTY)
+            // For OLD row (problematic row): QTY/KIT = MIN(QTY/UNIT, REM_QTY) = REM_QTY (since REM_QTY < QTY/UNIT)
+            const oldRowQtyKit = Math.min(originalQtyUnit, remainingQty);
+            
+            // For NEW row: QTY/KIT = QTY/UNIT - oldRowQtyKit (the needed quantity from new lot)
+            const newRowQtyKit = originalQtyUnit - oldRowQtyKit;
+            
+            console.log('insertNewLotRowInKittingSummaryAfterScan: Row ' + rowNo + ' - MTRL DESC: ' + originalMtrlDesc + ', QTY/Unit: ' + originalQtyUnit + ', REM_QTY: ' + remainingQty + ', OLD QTY/KIT: ' + oldRowQtyKit + ', NEW QTY/KIT: ' + newRowQtyKit);
+            
+            // Update the OLD row's QTY/KIT to show the remaining qty (what we can get from old lot)
+            const oldRowQtyKitCell = targetCells[5]; // 6th column is QTY/KIT
+            if (oldRowQtyKitCell) {
+                oldRowQtyKitCell.textContent = oldRowQtyKit;
+            }
+            
+            // Create new row for Kitting Summary using data from ORIGINAL row
+            const shortDesc = originalMtrlDesc ? 
+                (originalMtrlDesc.length > 25 ? originalMtrlDesc.substring(0, 25) + '...' : originalMtrlDesc) : '';
             
             const newSummaryRow = document.createElement('tr');
             newSummaryRow.id = summaryRowId;
             newSummaryRow.style.backgroundColor = '#ffffcc'; // Light yellow for new lot row
+            // QTY/KIT should be BLANK until new LOT NO is scanned
             newSummaryRow.innerHTML = `
                 <td>${rowNo}</td>
-                <td title="${record.material_description || ''}">${shortDesc}</td>
-                <td>${qtyUnitInt}</td>
+                <td title="${originalMtrlDesc}">${shortDesc}</td>
+                <td>${originalQtyUnit}</td>
                 <td></td>
                 <td style="color: #999; font-style: italic;">New LOT...</td>
-                <td id="kitting_newqty_${rowNo}">${neededQty}</td>
+                <td id="kitting_newqty_${rowNo}"></td>
             `;
             
-            // Insert after the problematic row in Kitting Summary
-            if (targetRowIndex >= 0 && targetRowIndex < summaryRows.length && summaryRows[targetRowIndex]) {
-                const targetRow = summaryRows[targetRowIndex];
-                // Paint the problematic row red in Kitting Summary
-                targetRow.style.backgroundColor = '#ffcccc';
-                
-                console.log('Inserting new lot row after row ' + rowNo + ' in Kitting Summary');
-                
-                if (targetRow.nextSibling) {
-                    kittingSummaryBody.insertBefore(newSummaryRow, targetRow.nextSibling);
-                } else {
-                    kittingSummaryBody.appendChild(newSummaryRow);
-                }
+            // Paint the problematic row red in Kitting Summary
+            targetRow.style.backgroundColor = '#ffcccc';
+            
+            console.log('Inserting new lot row after row ' + rowNo + ' in Kitting Summary');
+            
+            // Insert after the problematic row
+            if (targetRow.nextSibling) {
+                kittingSummaryBody.insertBefore(newSummaryRow, targetRow.nextSibling);
             } else {
-                console.log('Target row not found in Kitting Summary for row ' + rowNo);
+                kittingSummaryBody.appendChild(newSummaryRow);
             }
             
             // Auto-focus to START SCAN MTLS input when problematic row is detected
@@ -3555,55 +4330,31 @@
                 if (mtrlDesc && lotNo) {
                     // Only save rows that have been scanned (have lot number)
                     // Use visual row position (1-25) not the element ID number
-                    // qty = LOT QTY (scanned quantity from QR code, e.g., 20)
-                    // remQty = REM QTY (remaining quantity after kitting)
+                    
+                    // IMPORTANT: ALWAYS read directly from Total Quantity Monitor inputs
+                    // These are the CURRENT values that should be saved to MAIN_DB
+                    // The form inputs (lotNoInput, qtyInput, remQtyInput) are the TQM inputs
+                    // So we should use them directly, not override with problematicRowsScanned
+                    
+                    // Read CURRENT values from Total Quantity Monitor inputs
+                    const currentLotNo = lotNoInput ? lotNoInput.value : '';
+                    const currentLotQty = qtyInput ? parseInt(qtyInput.value) || 0 : 0;
+                    const currentRemQty = remQtyInput ? parseInt(remQtyInput.value) || 0 : currentLotQty;
+                    const currentScanMaterial = scanMaterialInput ? scanMaterialInput.value : '';
+                    
+                    console.log('Row ' + visualRowNo + ' SAVING from TQM inputs: LOT=' + currentLotNo + ', LOT QTY=' + currentLotQty + ', REM QTY=' + currentRemQty);
+                    
                     materials.push({
                         row_no: visualRowNo,
                         material_description: mtrlDesc,
                         qty_unit: parseInt(qtyUnit) || 0,
-                        scan_material: scanMaterial || '',
-                        lot_no: lotNo,
-                        lot_qty: parseInt(qty) || 0,
-                        remaining_qty: parseInt(remQty) || parseInt(qty) || 0
+                        scan_material: currentScanMaterial,
+                        lot_no: currentLotNo,
+                        lot_qty: currentLotQty,
+                        remaining_qty: currentRemQty
                     });
                 }
             });
-            
-            // Also add new lot row data from problematicRowsScanned
-            // These are rows that have been scanned with a new lot (e.g., row 3+ with LOT QTY = 50)
-            for (let rowNo in problematicRowsScanned) {
-                const rowData = problematicRowsScanned[rowNo];
-                // Only save if new lot has been scanned
-                if (rowData.scanned && rowData.newLotNo) {
-                    // Get material description from the original row
-                    const mtrlDescInput = document.getElementById('material_' + rowNo);
-                    const mtrlDesc = mtrlDescInput ? mtrlDescInput.value : '';
-                    
-                    // Update the existing row with new lot data instead of adding a new row
-                    // Find and update the existing material entry for this row
-                    const existingIdx = materials.findIndex(m => m.row_no === parseInt(rowNo));
-                    if (existingIdx >= 0) {
-                        // Update existing entry with new lot data
-                        materials[existingIdx].scan_material = rowData.newScanMaterial || '';
-                        materials[existingIdx].lot_no = rowData.newLotNo || '';
-                        materials[existingIdx].lot_qty = parseInt(rowData.newScannedQty) || 0;
-                        materials[existingIdx].remaining_qty = rowData.newRemQty !== undefined ? rowData.newRemQty : (parseInt(rowData.newScannedQty) || 0);
-                        console.log('Updated row ' + rowNo + ' with new lot data: LOT=' + rowData.newLotNo + ', LOT QTY=' + materials[existingIdx].lot_qty + ', REM QTY=' + materials[existingIdx].remaining_qty);
-                    } else if (mtrlDesc) {
-                        // Add new entry if not found
-                        materials.push({
-                            row_no: parseInt(rowNo),
-                            material_description: mtrlDesc,
-                            qty_unit: rowData.qtyUnit || 0,
-                            scan_material: rowData.newScanMaterial || '',
-                            lot_no: rowData.newLotNo || '',
-                            lot_qty: parseInt(rowData.newScannedQty) || 0,
-                            remaining_qty: rowData.newRemQty !== undefined ? rowData.newRemQty : (parseInt(rowData.newScannedQty) || 0)
-                        });
-                        console.log('Added new lot row ' + rowNo + ' to MAIN_DB: LOT=' + rowData.newLotNo + ', LOT QTY=' + rowData.newScannedQty + ', REM QTY=' + (rowData.newRemQty !== undefined ? rowData.newRemQty : rowData.newScannedQty));
-                    }
-                }
-            }
             
             if (materials.length === 0) return;
             

@@ -320,6 +320,31 @@ class DatabaseManager:
             except:
                 pass
             
+            # Create problematic_row table for storing problematic rows (REM QTY < QTY)
+            # Same structure as kitting_summary but stores rows when there are quantity issues
+            # When problematic rows exist, Kitting Summary Browser loads from this table instead
+            create_problematic_row_table = """
+            CREATE TABLE IF NOT EXISTS problematic_row (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                job_order VARCHAR(50),
+                model_code VARCHAR(100),
+                row_no INT,
+                material_description VARCHAR(500),
+                material_code VARCHAR(100),
+                qty_unit INT DEFAULT 0,
+                scan_material VARCHAR(100),
+                lot_no VARCHAR(100),
+                qty_kit INT DEFAULT 0,
+                is_new_lot_row TINYINT DEFAULT 0,
+                parent_row_no INT DEFAULT NULL,
+                date_today DATE,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_job_order (job_order),
+                INDEX idx_row_no (row_no)
+            )
+            """
+            cursor.execute(create_problematic_row_table)
+            
             # Create joborder_plan table for tracking kitting progress per job order
             # This tracks each kitting scan with incrementing result and decrementing balance
             create_joborder_plan_table = """
@@ -1759,8 +1784,11 @@ class DatabaseManager:
             if connection:
                 connection.close()
 
-    def get_kitting_db_data(self, job_order):
-        """Get all kitting records from KITTING_DB for a job order"""
+    def get_kitting_db_data(self, job_order, today_only=True):
+        """Get all kitting records from KITTING_DB for a job order
+        
+        If today_only=True, only returns records from today (for Total count reset on new day).
+        """
         connection = None
         cursor = None
         try:
@@ -1774,12 +1802,23 @@ class DatabaseManager:
             )
             cursor = connection.cursor(dictionary=True)
             
-            query = """
-            SELECT * FROM KITTING_DB 
-            WHERE job_order = %s 
-            ORDER BY kitting_no, row_no
-            """
-            cursor.execute(query, (job_order,))
+            if today_only:
+                # Get today's date
+                today = datetime.now().strftime('%Y-%m-%d')
+                query = """
+                SELECT * FROM KITTING_DB 
+                WHERE job_order = %s AND date_today = %s
+                ORDER BY kitting_no, row_no
+                """
+                cursor.execute(query, (job_order, today))
+                print(f"get_kitting_db_data: job_order={job_order}, today={today}")
+            else:
+                query = """
+                SELECT * FROM KITTING_DB 
+                WHERE job_order = %s 
+                ORDER BY kitting_no, row_no
+                """
+                cursor.execute(query, (job_order,))
             results = cursor.fetchall()
             return results
             
@@ -1793,7 +1832,11 @@ class DatabaseManager:
                 connection.close()
 
     def get_next_kitting_no(self, job_order):
-        """Get the next kitting number for a job order"""
+        """Get the next kitting number for a job order
+        
+        Resets to 1 on a new day or new job order.
+        Only counts kitting entries from TODAY for the given job order.
+        """
         connection = None
         cursor = None
         try:
@@ -1807,12 +1850,19 @@ class DatabaseManager:
             )
             cursor = connection.cursor()
             
+            # Get today's date
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            # Query for max kitting_no for this job order TODAY only
+            # This ensures kitting number resets to 1 on a new day
+            # Use date_today column which is more reliable than timestamp
             query = """
             SELECT COALESCE(MAX(kitting_no), 0) + 1 as next_kitting_no 
             FROM KITTING_DB 
-            WHERE job_order = %s
+            WHERE job_order = %s AND date_today = %s
             """
-            cursor.execute(query, (job_order,))
+            cursor.execute(query, (job_order, today))
+            print(f"get_next_kitting_no: job_order={job_order}, today={today}")
             result = cursor.fetchone()
             return result[0] if result else 1
             
@@ -2508,6 +2558,186 @@ class DatabaseManager:
             print(f"Error resetting kitting_summary IDs: {e}")
             if connection:
                 connection.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def save_problematic_rows(self, job_order, model_code, rows):
+        """Save problematic rows to problematic_row table
+        Called when REM QTY < QTY is detected (insufficient quantity)
+        
+        Args:
+            job_order: Job order number
+            model_code: Model code
+            rows: List of dicts with row_no, material_description, material_code, qty_unit, 
+                  scan_material, lot_no, qty_kit, is_new_lot_row, parent_row_no
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor()
+            
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            # First clear existing problematic rows for this job order
+            cursor.execute("DELETE FROM problematic_row WHERE job_order = %s", (job_order,))
+            
+            # Insert new problematic rows
+            insert_query = """
+            INSERT INTO problematic_row 
+            (job_order, model_code, row_no, material_description, material_code, qty_unit, 
+             scan_material, lot_no, qty_kit, is_new_lot_row, parent_row_no, date_today)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            for row in rows:
+                row_no = row.get('row_no', 0)
+                if row_no == 0:
+                    continue
+                values = (
+                    job_order,
+                    model_code,
+                    row_no,
+                    row.get('material_description', '') or row.get('mtrl_desc', ''),
+                    row.get('material_code', ''),
+                    int(row.get('qty_unit', 0) or 0),
+                    row.get('scan_material', '') or row.get('scan_mtrl', ''),
+                    row.get('lot_no', ''),
+                    int(row.get('qty_kit', 0) or 0),
+                    int(row.get('is_new_lot_row', 0) or 0),
+                    row.get('parent_row_no') if row.get('parent_row_no') else None,
+                    today
+                )
+                cursor.execute(insert_query, values)
+            
+            connection.commit()
+            print(f"Saved {len(rows)} problematic rows for job order {job_order}")
+            return True
+            
+        except Exception as e:
+            print(f"Error saving problematic rows: {e}")
+            if connection:
+                connection.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def get_problematic_rows(self, job_order):
+        """Get problematic rows for a job order
+        
+        Args:
+            job_order: Job order number
+            
+        Returns:
+            List of problematic row records ordered by row_no
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor(dictionary=True)
+            
+            query = """
+            SELECT * FROM problematic_row 
+            WHERE job_order = %s
+            ORDER BY row_no ASC, is_new_lot_row ASC
+            """
+            cursor.execute(query, (job_order,))
+            results = cursor.fetchall()
+            return results
+            
+        except Exception as e:
+            print(f"Error getting problematic rows: {e}")
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def has_problematic_rows(self, job_order):
+        """Check if there are any problematic rows for a job order
+        
+        Args:
+            job_order: Job order number
+            
+        Returns:
+            True if problematic rows exist, False otherwise
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor()
+            
+            query = "SELECT COUNT(*) FROM problematic_row WHERE job_order = %s"
+            cursor.execute(query, (job_order,))
+            result = cursor.fetchone()
+            return result[0] > 0 if result else False
+            
+        except Exception as e:
+            print(f"Error checking problematic rows: {e}")
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def clear_problematic_rows(self, job_order):
+        """Clear problematic rows for a job order
+        
+        Args:
+            job_order: Job order number
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor()
+            
+            cursor.execute("DELETE FROM problematic_row WHERE job_order = %s", (job_order,))
+            connection.commit()
+            print(f"Cleared problematic_row for job order {job_order}")
+            return True
+            
+        except Exception as e:
+            print(f"Error clearing problematic rows: {e}")
             return False
         finally:
             if cursor:
