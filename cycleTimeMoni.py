@@ -15,6 +15,7 @@ import sys
 
 import torisql
 import pandas as pd
+import qr_printer
 
 # CSV file path for FALSE TEST database
 FALSE_TEST_CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'TORITANI DATABASE HIPROC.csv')
@@ -2908,6 +2909,55 @@ def get_process_state(process_no):
         })
     except Exception as e:
         print(f"Error in get_process_state: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ==================== QR CODE PRINTER API ====================
+@app.route("/api/print_kitting_qr", methods=["POST"])
+def print_kitting_qr():
+    """Print a kitting QR code label to the SATO PW208NX printer"""
+    try:
+        data = request.json
+        qr_data = data.get('qr_data', '')
+        printer_name = data.get('printer_name', None)
+        
+        if not qr_data:
+            return jsonify({"success": False, "error": "QR data is required"}), 400
+        
+        print(f"PRINTING QR CODE: {qr_data}")
+        
+        # Try SBPL first, then fall back to CPCL if needed
+        result = qr_printer.print_kitting_qr_code(qr_data, printer_name)
+        
+        if result['success']:
+            print(f"QR PRINT SUCCESS: {result['message']}")
+            return jsonify({"success": True, "message": result['message']})
+        else:
+            # Try CPCL format as fallback
+            print(f"SBPL failed, trying CPCL: {result['message']}")
+            result_cpcl = qr_printer.print_kitting_qr_code_cpcl(qr_data, printer_name)
+            if result_cpcl['success']:
+                print(f"QR PRINT SUCCESS (CPCL): {result_cpcl['message']}")
+                return jsonify({"success": True, "message": result_cpcl['message']})
+            else:
+                print(f"QR PRINT FAILED: {result_cpcl['message']}")
+                return jsonify({"success": False, "error": result_cpcl['message']}), 500
+            
+    except Exception as e:
+        print(f"Error printing QR code: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/list_printers", methods=["GET"])
+def api_list_printers():
+    """List all available printers on the system"""
+    try:
+        printers = qr_printer.list_printers()
+        sato_printer = qr_printer.get_sato_printer_name()
+        return jsonify({
+            "success": True, 
+            "printers": printers,
+            "sato_printer": sato_printer
+        })
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 def start_arduino_bridge():
