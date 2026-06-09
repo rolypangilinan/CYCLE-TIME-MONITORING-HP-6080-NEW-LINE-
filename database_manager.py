@@ -281,7 +281,7 @@ class DatabaseManager:
             
             # Create kitting_summary table for storing current kitting summary state
             # This mirrors the KITTING SUMMARY display in the browser
-            # Columns: id, job_order, model_code, row_no, material_description, material_code, qty_unit, scan_material, lot_no, qty_kit, date_today, timestamp
+            # Columns: id, job_order, model_code, row_no, material_description, qty_unit, scan_material, lot_no, qty_kit, date_today, timestamp
             create_kitting_summary_table = """
             CREATE TABLE IF NOT EXISTS kitting_summary (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -289,7 +289,6 @@ class DatabaseManager:
                 model_code VARCHAR(100),
                 row_no INT,
                 material_description VARCHAR(500),
-                material_code VARCHAR(100),
                 qty_unit INT DEFAULT 0,
                 scan_material VARCHAR(100),
                 lot_no VARCHAR(100),
@@ -302,20 +301,23 @@ class DatabaseManager:
             """
             cursor.execute(create_kitting_summary_table)
             
-            # Drop old columns if they exist (kitting_no, is_new_lot_row, parent_row_no, mtrl_desc, scan_mtrl)
-            try:
-                cursor.execute("ALTER TABLE kitting_summary DROP COLUMN IF EXISTS kitting_no")
-                cursor.execute("ALTER TABLE kitting_summary DROP COLUMN IF EXISTS is_new_lot_row")
-                cursor.execute("ALTER TABLE kitting_summary DROP COLUMN IF EXISTS parent_row_no")
-                cursor.execute("ALTER TABLE kitting_summary DROP COLUMN IF EXISTS mtrl_desc")
-                cursor.execute("ALTER TABLE kitting_summary DROP COLUMN IF EXISTS scan_mtrl")
-            except:
-                pass
+            # Drop old/unused columns if they exist (compatible with all MySQL versions)
+            columns_to_drop = ['kitting_no', 'is_new_lot_row', 'parent_row_no', 'mtrl_desc', 'scan_mtrl', 'material_code']
+            for col in columns_to_drop:
+                try:
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                        WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'kitting_summary' AND COLUMN_NAME = %s
+                    """, (self.database_name, col))
+                    if cursor.fetchone()[0] > 0:
+                        cursor.execute(f"ALTER TABLE kitting_summary DROP COLUMN {col}")
+                        print(f"Dropped column '{col}' from kitting_summary")
+                except Exception as e:
+                    print(f"Error dropping column '{col}': {e}")
             
             # Add new columns if they don't exist
             try:
                 cursor.execute("ALTER TABLE kitting_summary ADD COLUMN IF NOT EXISTS material_description VARCHAR(500) AFTER row_no")
-                cursor.execute("ALTER TABLE kitting_summary ADD COLUMN IF NOT EXISTS material_code VARCHAR(100) AFTER material_description")
                 cursor.execute("ALTER TABLE kitting_summary ADD COLUMN IF NOT EXISTS scan_material VARCHAR(100) AFTER qty_unit")
             except:
                 pass
@@ -1951,7 +1953,7 @@ class DatabaseManager:
         Args:
             job_order: Job order number
             model_code: Model code
-            summary_rows: List of dicts with row_no, material_description, material_code, qty_unit, scan_material, lot_no, qty_kit
+            summary_rows: List of dicts with row_no, material_description, qty_unit, scan_material, lot_no, qty_kit
         """
         connection = None
         cursor = None
@@ -1971,13 +1973,12 @@ class DatabaseManager:
             # Upsert query - insert or update existing row
             upsert_query = """
             INSERT INTO kitting_summary 
-            (job_order, model_code, row_no, material_description, material_code, qty_unit, scan_material, lot_no, qty_kit, date_today)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (job_order, model_code, row_no, material_description, qty_unit, scan_material, lot_no, qty_kit, date_today)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 job_order = VALUES(job_order),
                 model_code = VALUES(model_code),
                 material_description = VALUES(material_description),
-                material_code = VALUES(material_code),
                 qty_unit = VALUES(qty_unit),
                 scan_material = VALUES(scan_material),
                 lot_no = VALUES(lot_no),
@@ -1994,7 +1995,6 @@ class DatabaseManager:
                     model_code,
                     row_no,
                     row.get('material_description', '') or row.get('mtrl_desc', ''),
-                    row.get('material_code', ''),
                     int(row.get('qty_unit', 0) or 0),
                     row.get('scan_material', '') or row.get('scan_mtrl', ''),
                     row.get('lot_no', ''),
@@ -2074,7 +2074,7 @@ class DatabaseManager:
             cursor = connection.cursor(dictionary=True)
             
             query = """
-            SELECT row_no, material_description, material_code, qty_unit, scan_material, lot_no, qty_kit 
+            SELECT row_no, material_description, qty_unit, scan_material, lot_no, qty_kit 
             FROM kitting_summary 
             WHERE job_order = %s
             ORDER BY row_no ASC
@@ -2539,7 +2539,7 @@ class DatabaseManager:
             
             # Step 1: Backup all data ordered by job_order and row_no
             cursor.execute("""
-                SELECT job_order, model_code, row_no, material_description, material_code, 
+                SELECT job_order, model_code, row_no, material_description, 
                        qty_unit, scan_material, lot_no, qty_kit, date_today, timestamp
                 FROM kitting_summary 
                 ORDER BY job_order, row_no ASC
@@ -2559,9 +2559,9 @@ class DatabaseManager:
             # Step 3: Re-insert all rows (will get sequential IDs 1, 2, 3, ...)
             insert_query = """
                 INSERT INTO kitting_summary 
-                (job_order, model_code, row_no, material_description, material_code, 
+                (job_order, model_code, row_no, material_description, 
                  qty_unit, scan_material, lot_no, qty_kit, date_today, timestamp)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
             for row in backup_data:
@@ -2570,7 +2570,6 @@ class DatabaseManager:
                     row['model_code'],
                     row['row_no'],
                     row['material_description'],
-                    row['material_code'],
                     row['qty_unit'],
                     row['scan_material'],
                     row['lot_no'],

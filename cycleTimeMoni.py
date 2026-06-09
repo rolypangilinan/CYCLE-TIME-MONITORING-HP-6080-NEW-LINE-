@@ -484,7 +484,7 @@ def getQuantityAndSuffix():
     job_order_raw = data.get("job_order_raw")
     db_type = data.get("db_type", "toritani")
     
-    print(f"JOB ORDER RAW {job_order_raw}, DB TYPE: {db_type}")
+    print(f"JOB ORDER RAW '{job_order_raw}' (len={len(str(job_order_raw)) if job_order_raw else 0}), DB TYPE: {db_type}")
 
     if db_type == 'falsetest':
         # For FALSE TEST database, read suffix from CSV
@@ -507,10 +507,42 @@ def getQuantityAndSuffix():
             print(f"Error reading FALSE TEST CSV: {e}")
             return jsonify({"success": True, "quantity": 468, "suffix": "0"})
     else:
-        # TORITANI SAN DATABASE - use SQL
-        tori_qty, tori_suffix = torisql.getJobOrderTotalQuantity(job_order_raw)
-        print(f"Torio Qty: {tori_qty}, Torio Suffix: {tori_suffix}")
-        return jsonify({"success": True, "quantity": int(tori_qty), "suffix": tori_suffix})
+        # TORITANI SAN DATABASE - use SQL (retry up to 3 times on failure)
+        last_error = None
+        for attempt in range(3):
+            try:
+                tori_qty, tori_suffix = torisql.getJobOrderTotalQuantity(job_order_raw)
+                print(f"Torio Qty: {tori_qty}, Torio Suffix: {tori_suffix}")
+                
+                # Ensure suffix is never empty - extract from raw barcode if needed
+                if not tori_suffix or tori_suffix.strip() == '':
+                    # Try to extract suffix from raw barcode
+                    # Format: job_order(10) + padding/data + suffix + trailing(2)
+                    raw = str(job_order_raw).strip()
+                    if len(raw) > 12:
+                        # Remove last 2 chars, then take from position 13
+                        extracted = raw[:-2][13:]
+                        if extracted.strip():
+                            tori_suffix = extracted.strip()
+                            print(f"Suffix extracted from barcode: {tori_suffix}")
+                    # If still empty, try position 10 to -2 and strip
+                    if not tori_suffix or tori_suffix.strip() == '':
+                        if len(raw) > 12:
+                            middle = raw[10:-2].strip()
+                            if middle:
+                                tori_suffix = middle.lstrip('0') or '0'
+                                print(f"Suffix extracted from middle: {tori_suffix}")
+                
+                return jsonify({"success": True, "quantity": int(tori_qty), "suffix": tori_suffix})
+            except Exception as e:
+                last_error = e
+                print(f"getQuantityAndSuffix attempt {attempt+1} failed: {e}")
+                try:
+                    torisql.connect()
+                except:
+                    pass
+        print(f"getQuantityAndSuffix all retries failed: {last_error}")
+        return jsonify({"success": False, "error": str(last_error)}), 500
 
 #Get Tori Sql
 @app.route("/getToriSql")
@@ -1187,6 +1219,23 @@ def save_elapsed_time_settings():
             'millisecond': millisecond,
             'blinking': blinking
         }
+        
+        if save_settings_file(settings):
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Failed to save settings"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/save_qr_hide_setting", methods=["POST"])
+def save_qr_hide_setting():
+    """Save QR code hide/unhide setting (persists forever until changed)"""
+    try:
+        data = request.json
+        qr_code_hidden = data.get('qr_code_hidden', False)
+        
+        settings = load_settings_file()
+        settings['qr_code_hidden'] = qr_code_hidden
         
         if save_settings_file(settings):
             return jsonify({"success": True})
