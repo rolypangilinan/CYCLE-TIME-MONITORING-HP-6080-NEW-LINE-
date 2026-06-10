@@ -1827,8 +1827,8 @@ class DatabaseManager:
     def get_next_kitting_no(self, job_order):
         """Get the next kitting number for a job order
         
-        Resets to 1 on a new day or new job order.
-        Only counts kitting entries from TODAY for the given job order.
+        Counts ALL kitting entries for the given job order regardless of date.
+        This allows resuming kitting from where it left off even across days.
         """
         connection = None
         cursor = None
@@ -1843,19 +1843,15 @@ class DatabaseManager:
             )
             cursor = connection.cursor()
             
-            # Get today's date
-            today = datetime.now().strftime('%Y-%m-%d')
-            
-            # Query for max kitting_no for this job order TODAY only
-            # This ensures kitting number resets to 1 on a new day
-            # Use date_today column which is more reliable than timestamp
+            # Query for max kitting_no for this job order (ALL dates)
+            # This ensures kitting continues from where it left off even the next day
             query = """
             SELECT COALESCE(MAX(kitting_no), 0) + 1 as next_kitting_no 
             FROM KITTING_DB 
-            WHERE job_order = %s AND date_today = %s
+            WHERE job_order = %s
             """
-            cursor.execute(query, (job_order, today))
-            print(f"get_next_kitting_no: job_order={job_order}, today={today}")
+            cursor.execute(query, (job_order,))
+            print(f"get_next_kitting_no: job_order={job_order}")
             result = cursor.fetchone()
             return result[0] if result else 1
             

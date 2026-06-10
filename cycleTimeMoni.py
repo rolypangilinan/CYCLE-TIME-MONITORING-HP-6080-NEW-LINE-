@@ -881,7 +881,7 @@ def get_kitting_db():
         if not job_order:
             return jsonify({"success": False, "error": "Job order is required"}), 400
         
-        data = db_manager.get_kitting_db_data(job_order, today_only=True)
+        data = db_manager.get_kitting_db_data(job_order, today_only=False)
         return jsonify({"success": True, "data": data})
             
     except Exception as e:
