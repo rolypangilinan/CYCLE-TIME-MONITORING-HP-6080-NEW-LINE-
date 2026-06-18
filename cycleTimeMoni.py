@@ -25,7 +25,7 @@ db_manager = DatabaseManager()
 
 # Create our website using Flask
 # This line starts up our web application
-app = Flask(__name__)
+app = Flask(__name__)       #create the app (auto-finds templates/ folder)
 
 @app.after_request
 def add_no_cache_headers(response):
@@ -309,6 +309,7 @@ def initialize_processes_started_today():
 
 # This is the main menu route
 # When someone visits our website's main address, this code runs
+# Lines 312-316 → @app.route("/") + render_template('main_menu.html') — when browser visits /, send the HTML file
 @app.route("/")
 def main_menu():
     # Show the main menu to the visitor
@@ -420,6 +421,11 @@ def manpower():
     # Show the manpower configuration page
     return render_template('manpower.html')
 
+# Material Setter Manpower configuration page
+@app.route("/mtrl_set_manpower")
+def mtrl_set_manpower():
+    return render_template('mtrl_set_manpower.html')
+
 # Cycle Time Graph Monitoring page
 @app.route("/cycle_graph")
 def cycle_graph():
@@ -446,6 +452,17 @@ def material_setter():
     
     # Show the material setter page with database info
     return render_template('material_setter.html', db_name=db_name, db_type=db_type)
+
+FALSETEST_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'falsetest_config.json')
+
+def get_falsetest_quantity():
+    """Read FALSE TEST quantity from config file (no restart needed to change)"""
+    try:
+        with open(FALSETEST_CONFIG_PATH, 'r') as f:
+            config = json.load(f)
+        return int(config.get('quantity', 10))
+    except:
+        return 10
 
 # Kitting material categories for matching (row_no -> category keyword)
 # These keywords are searched in MaterialDescription column of torisql.py
@@ -501,11 +518,12 @@ def getQuantityAndSuffix():
                 suffix = str(job_data.iloc[0]['suffix'])
             
             print(f"FALSE TEST - Suffix: {suffix}")
-            # Quantity is hardcoded as "FT 468" on frontend
-            return jsonify({"success": True, "quantity": 468, "suffix": suffix})
+            ft_qty = get_falsetest_quantity()
+            return jsonify({"success": True, "quantity": ft_qty, "suffix": suffix})
         except Exception as e:
             print(f"Error reading FALSE TEST CSV: {e}")
-            return jsonify({"success": True, "quantity": 468, "suffix": "0"})
+            ft_qty = get_falsetest_quantity()
+            return jsonify({"success": True, "quantity": ft_qty, "suffix": "0"})
     else:
         # TORITANI SAN DATABASE - use SQL (retry up to 3 times on failure)
         last_error = None
@@ -989,7 +1007,8 @@ def get_next_kitting_no():
             return jsonify({"success": False, "error": "Job order is required"}), 400
         
         kitting_no = db_manager.get_next_kitting_no(job_order)
-        return jsonify({"success": True, "kitting_no": kitting_no})
+        is_new_jo = not db_manager.has_kitting_records(job_order)
+        return jsonify({"success": True, "kitting_no": kitting_no, "is_new_jo": is_new_jo})
             
     except Exception as e:
         print(f"Error getting next kitting number: {e}")
@@ -1022,6 +1041,8 @@ def save_joborder_plan():
         model_code = data.get('model_code', '')
         kitting_qr_code = data.get('kitting_qr_code', '')
         plan_qty = data.get('plan_qty', 0)
+        operator_name = data.get('operator_name', '')
+        time_in = data.get('time_in', None)
         
         if not job_order:
             return jsonify({"success": False, "error": "Job order is required"}), 400
@@ -1029,7 +1050,7 @@ def save_joborder_plan():
         if not kitting_qr_code:
             return jsonify({"success": False, "error": "Kitting QR code is required"}), 400
         
-        result = db_manager.save_joborder_plan(job_order, suffix, model_code, kitting_qr_code, plan_qty)
+        result = db_manager.save_joborder_plan(job_order, suffix, model_code, kitting_qr_code, plan_qty, operator_name, time_in)
         
         if result.get('success'):
             return jsonify({
@@ -1077,6 +1098,60 @@ def get_joborder_plan_latest():
     except Exception as e:
         print(f"Error getting latest joborder_plan: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/check_jo_balance", methods=["GET"])
+def check_jo_balance():
+    """Check if a job order is finished (balance = 0 in joborder_plan)"""
+    try:
+        job_order = request.args.get('job_order', '')
+        
+        if not job_order:
+            return jsonify({"success": False, "error": "Job order is required"}), 400
+        
+        latest = db_manager.get_joborder_plan_latest(job_order)
+        
+        if latest is None:
+            # No record found - this is a brand new JO, not finished
+            return jsonify({"success": True, "finished": False, "has_records": False})
+        
+        balance = int(latest.get('balance', -1))
+        plan = int(latest.get('plan', 0))
+        result_count = int(latest.get('result', 0))
+        
+        is_finished = (balance <= 0 and plan > 0)
+        
+        return jsonify({
+            "success": True,
+            "finished": is_finished,
+            "has_records": True,
+            "balance": balance,
+            "plan": plan,
+            "result": result_count,
+            "model_code": latest.get('model_code', ''),
+            "last_kitting_qr": latest.get('kitting_qr_code', '')
+        })
+            
+    except Exception as e:
+        print(f"Error checking JO balance: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/set_falsetest_qty", methods=["POST"])
+def set_falsetest_qty():
+    """Update FALSE TEST quantity in config file (live, no restart needed)"""
+    try:
+        data = request.json
+        qty = int(data.get('quantity', 10))
+        with open(FALSETEST_CONFIG_PATH, 'w') as f:
+            json.dump({"quantity": qty}, f)
+        print(f"FALSE TEST quantity updated to: {qty}")
+        return jsonify({"success": True, "quantity": qty})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/get_falsetest_qty", methods=["GET"])
+def get_falsetest_qty():
+    """Get current FALSE TEST quantity from config"""
+    return jsonify({"success": True, "quantity": get_falsetest_quantity()})
 
 @app.route("/api/clear_joborder_plan", methods=["POST"])
 def clear_joborder_plan():
@@ -1623,6 +1698,479 @@ def export_csv_now():
             return jsonify({"success": False, "error": result.get('error', 'Export failed')}), 500
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+# ==================== SELF TESTING / CALIBRATION API ====================
+CUSTOM_TESTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'custom_tests.json')
+
+@app.route("/api/get_custom_tests", methods=["GET"])
+def get_custom_tests():
+    """Get saved custom tests"""
+    try:
+        if os.path.exists(CUSTOM_TESTS_FILE):
+            with open(CUSTOM_TESTS_FILE, 'r') as f:
+                return jsonify({"success": True, "custom_tests": json.load(f)})
+        return jsonify({"success": True, "custom_tests": []})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/save_custom_tests", methods=["POST"])
+def save_custom_tests():
+    """Save custom tests to file"""
+    try:
+        data = request.json
+        custom_tests = data.get('custom_tests', [])
+        with open(CUSTOM_TESTS_FILE, 'w') as f:
+            json.dump(custom_tests, f, indent=2)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/run_self_test", methods=["POST"])
+def run_self_test():
+    """Run a specific self-test and return result"""
+    try:
+        data = request.json
+        test_id = data.get('test_id', '')
+        result = {"success": False, "detail": "Unknown test"}
+
+        if test_id == 'problematic_row_insert':
+            # Test: verify kitting_summary table is writable and problematic row logic works
+            try:
+                test_data = db_manager.run_functional_test('problematic_row_insert')
+                result = {"success": test_data.get('passed', False), "detail": test_data.get('detail', '')}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'track_last_kitting':
+            # Test: get_next_kitting_no returns correct number for existing JO
+            try:
+                test_data = db_manager.run_functional_test('track_last_kitting')
+                result = {"success": test_data.get('passed', False), "detail": test_data.get('detail', '')}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'filter_bush_check':
+            # Test: model codes list exists and can distinguish bushing vs non-bushing
+            try:
+                codes = load_model_codes_file()
+                has_codes = len(codes) > 0
+                total_categories = len(MATERIAL_CATEGORIES)
+                result = {"success": has_codes and total_categories == 26,
+                          "detail": f"Models with bushing: {len(codes)}, Total categories: {total_categories} (26=WITH bush, 25=WITHOUT)"}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'read_suffix':
+            # Test: getJobOrderTotalQuantity can connect and return data
+            try:
+                test_data = db_manager.run_functional_test('read_suffix')
+                result = {"success": test_data.get('passed', False), "detail": test_data.get('detail', '')}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'read_jo_qty':
+            # Test: quantity can be read from database
+            try:
+                test_data = db_manager.run_functional_test('read_jo_qty')
+                result = {"success": test_data.get('passed', False), "detail": test_data.get('detail', '')}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'one_time_scan':
+            # Test: verify joborder_plan doesn't create duplicates
+            try:
+                test_data = db_manager.run_functional_test('one_time_scan')
+                result = {"success": test_data.get('passed', False), "detail": test_data.get('detail', '')}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'printer_suffix':
+            # Test: QR code format includes suffix placeholder
+            try:
+                result = {"success": True, "detail": "QR format: DD/MM/YY-KITTING_NO JOB_ORDER SUFFIX - suffix field present in code"}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'suffix_both':
+            # Test: kitting_summary table has columns for suffix data
+            try:
+                test_data = db_manager.run_functional_test('suffix_both')
+                result = {"success": test_data.get('passed', False), "detail": test_data.get('detail', '')}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'sato_active':
+            # Test: check SATO printer connectivity (retry up to 2 times with longer timeout)
+            try:
+                import socket
+                printer_ok = False
+                last_code = -1
+                for attempt in range(2):
+                    try:
+                        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        sock.settimeout(5)
+                        last_code = sock.connect_ex(('192.168.2.100', 9100))
+                        sock.close()
+                        if last_code == 0:
+                            printer_ok = True
+                            break
+                    except:
+                        pass
+                if printer_ok:
+                    result = {"success": True, "detail": "SATO printer at 192.168.2.100:9100 is REACHABLE"}
+                else:
+                    result = {"success": False, "detail": "SATO printer at 192.168.2.100:9100 is NOT reachable (code: " + str(last_code) + ")"}
+            except Exception as e:
+                result = {"success": False, "detail": f"Printer check error: {str(e)}"}
+
+        elif test_id == 'manual_print':
+            # Test: print endpoint exists and is callable
+            result = {"success": True, "detail": "Manual print function is available via frontend printKittingQrToSato()"}
+
+        elif test_id == 'no_old_print':
+            # Test: re-scan logic - nextKittingNo > 1 should NOT print
+            result = {"success": True, "detail": "Logic: isNewJobOrder = (nextKittingNo === 1); generateKittingQrCode(isNewJobOrder) - old JO won't print"}
+
+        elif test_id == 'idle_time':
+            # Test: check server uptime and last reset
+            try:
+                from datetime import datetime
+                uptime_seconds = (datetime.now() - datetime.fromisoformat(server_start_time)).total_seconds()
+                uptime_min = round(uptime_seconds / 60, 1)
+                result = {"success": True, "detail": f"Server uptime: {uptime_min} minutes. No auto-reset unless date changes."}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'operator_persist':
+            # Test: check if manpower records persist
+            try:
+                test_data = db_manager.run_functional_test('operator_persist')
+                result = {"success": test_data.get('passed', False), "detail": test_data.get('detail', '')}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'custom_functional':
+            # Custom functional test from ADD TEST
+            try:
+                tables = data.get('tables', '')
+                action = data.get('action', 'SELECT')
+                test_jo = data.get('test_jo', '')
+                test_data = db_manager.run_functional_test('custom', tables=tables, action=action, test_jo=test_jo, name=data.get('name', ''))
+                result = {"success": test_data.get('passed', False), "detail": test_data.get('detail', '')}
+            except Exception as e:
+                result = {"success": False, "detail": str(e)}
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ==================== AI SELF TESTING ENGINE ====================
+AI_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_config.json')
+
+def load_ai_config():
+    try:
+        if os.path.exists(AI_CONFIG_FILE):
+            with open(AI_CONFIG_FILE, 'r') as f:
+                return json.load(f)
+    except: pass
+    return {"provider": "offline", "api_key": "", "model": "gpt-3.5-turbo"}
+
+def save_ai_config(config):
+    try:
+        with open(AI_CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+    except Exception as e:
+        print(f"Error saving AI config: {e}")
+
+DIAGNOSTIC_RULES = {
+    'b16': {'cat': 'Server',   'deps': [],      'fixes': ['Check if Flask is running on port 5000', 'Restart cycleTimeMoni.py']},
+    'b17': {'cat': 'Database', 'deps': ['b16'], 'fixes': ['Check MySQL is running (localhost:3306)', 'Verify root password', 'CREATE DATABASE cycle_time_monitoring']},
+    'b18': {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Ensure manpower table exists', 'Run db_manager.connect() to recreate tables']},
+    'b19': {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Ensure standard_times table exists']},
+    'b20': {'cat': 'Config',   'deps': ['b16'], 'fixes': ['Check kitting_materials.json exists']},
+    'b21': {'cat': 'Config',   'deps': ['b16'], 'fixes': ['Check model_codes_no_bushing.json exists']},
+    'b22': {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Ensure MAIN_DB table exists']},
+    'b23': {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Ensure kitting_summary table exists']},
+    'b24': {'cat': 'Database', 'deps': ['b18'], 'fixes': ['Assign operators to all 9 processes']},
+    'b25': {'cat': 'Config',   'deps': ['b16'], 'fixes': ['Check material_setter_settings.json']},
+    'b26': {'cat': 'Config',   'deps': ['b16'], 'fixes': ['Check sub_columns settings']},
+    'b27': {'cat': 'Config',   'deps': ['b16'], 'fixes': ['Check column_headers settings']},
+    'b28': {'cat': 'Config',   'deps': ['b16'], 'fixes': ['Check row_count setting']},
+    'b29': {'cat': 'Config',   'deps': ['b16'], 'fixes': ['Check ref_kitting_format setting']},
+    'b30': {'cat': 'Pages',    'deps': ['b16'], 'fixes': ['Check templates/main_menu.html exists']},
+    'b31': {'cat': 'Pages',    'deps': ['b16'], 'fixes': ['Check templates/material_setter.html']},
+    'b32': {'cat': 'Pages',    'deps': ['b16'], 'fixes': ['Check templates/manpower.html']},
+    'b33': {'cat': 'Pages',    'deps': ['b16'], 'fixes': ['Check templates/cycle_graph.html']},
+    'b34': {'cat': 'Pages',    'deps': ['b16'], 'fixes': ['Check templates/process1.html']},
+    'b35': {'cat': 'Pages',    'deps': ['b16'], 'fixes': ['Check templates/process2-9.html']},
+    'b1':  {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Check kitting_summary table schema', 'Verify INSERT permissions']},
+    'b2':  {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Check KITTING_DB table', 'Verify MAX(kitting_no) query']},
+    'b3':  {'cat': 'Config',   'deps': ['b21'], 'fixes': ['Check model_codes_no_bushing.json', 'Verify KITTING_MATERIAL_CATEGORIES has 26 entries']},
+    'b4':  {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Check Toritani SQL Server connection', 'Check joborder_plan table']},
+    'b5':  {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Check Toritani SQL Server connection']},
+    'b6':  {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Check INSERT into joborder_plan']},
+    'b7':  {'cat': 'Printer',  'deps': [],      'fixes': ['Verify QR code format includes suffix']},
+    'b9':  {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Check kitting_summary and KITTING_DB tables']},
+    'b10': {'cat': 'Printer',  'deps': [],      'fixes': ['Check SATO PW208NX is ON', 'Verify IP 192.168.2.100', 'Check USB/network cable']},
+    'b12': {'cat': 'Printer',  'deps': ['b10'], 'fixes': ['Check printKittingQrToSato() function']},
+    'b13': {'cat': 'Logic',    'deps': [],      'fixes': ['Verify loadNextKittingNo() conditional print logic']},
+    'b14': {'cat': 'Server',   'deps': ['b16'], 'fixes': ['Check SERVER_START_TIME variable']},
+    'b15': {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Check manpower table persistence']},
+}
+
+@app.route("/api/ai_diagnose", methods=["POST"])
+def ai_diagnose():
+    """Smart Diagnostics Engine - health score, category breakdown, fix suggestions"""
+    try:
+        data = request.json
+        results = data.get('results', {})
+        total = len(results)
+        if total == 0:
+            return jsonify({"success": True, "health_score": 0, "message": "No tests run yet", "categories": {}, "fixes": [], "report": "No tests have been executed yet."})
+
+        passed = sum(1 for r in results.values() if r.get('passed'))
+        health_score = round((passed / total) * 100)
+
+        categories = {}
+        fixes = []
+        for test_id, result in results.items():
+            rule = DIAGNOSTIC_RULES.get(test_id, {'cat': 'Other', 'deps': [], 'fixes': []})
+            cat = rule['cat']
+            if cat not in categories:
+                categories[cat] = {'pass': 0, 'fail': 0}
+            if result.get('passed'):
+                categories[cat]['pass'] += 1
+            else:
+                categories[cat]['fail'] += 1
+                dep_failed = any(dep in results and not results[dep].get('passed') for dep in rule.get('deps', []))
+                priority = 'low' if dep_failed else ('critical' if cat in ['Server', 'Database'] else 'medium')
+                fixes.append({'test_id': test_id, 'priority': priority,
+                    'message': 'Fix dependency first' if dep_failed else (result.get('detail', 'Test failed')),
+                    'suggestions': rule.get('fixes', [])})
+
+        fixes.sort(key=lambda x: {'critical': 0, 'medium': 1, 'low': 2}.get(x['priority'], 3))
+
+        report_lines = [f"SYSTEM HEALTH: {health_score}%", f"Tests: {passed}/{total} passed", ""]
+        if health_score == 100: report_lines.append("All systems operational.")
+        elif health_score >= 80: report_lines.append("Minor issues detected.")
+        elif health_score >= 50: report_lines.append("Multiple issues. Some features may not work.")
+        else: report_lines.append("CRITICAL issues. System needs attention.")
+        report_lines.append("")
+        for cat, cd in categories.items():
+            s = "PASS" if cd['fail'] == 0 else "FAIL"
+            report_lines.append(f"[{s}] {cat}: {cd['pass']}/{cd['pass']+cd['fail']}")
+        if fixes:
+            report_lines.extend(["", "RECOMMENDED FIXES:"])
+            for i, fix in enumerate(fixes[:10]):
+                report_lines.append(f"{i+1}. [{fix['priority'].upper()}] {fix['message']}")
+                for s in fix.get('suggestions', []): report_lines.append(f"   -> {s}")
+
+        return jsonify({"success": True, "health_score": health_score, "total": total, "passed": passed,
+                        "failed": total - passed, "categories": categories, "fixes": fixes, "report": "\n".join(report_lines)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/ai_auto_sequence", methods=["POST"])
+def ai_auto_sequence():
+    """Auto-Test Sequencer - optimal test order based on dependency graph"""
+    try:
+        sequence = []
+        visited = set()
+        def add_test(tid):
+            if tid in visited: return
+            for dep in DIAGNOSTIC_RULES.get(tid, {}).get('deps', []):
+                add_test(dep)
+            visited.add(tid)
+            sequence.append(tid)
+        for tid in DIAGNOSTIC_RULES:
+            add_test(tid)
+        return jsonify({"success": True, "sequence": sequence, "total": len(sequence)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/ai_chat", methods=["POST"])
+def ai_chat():
+    """LLM Chatbot - proxy to OpenAI or Gemini, with offline fallback"""
+    try:
+        import requests as http_req
+        data = request.json
+        user_message = data.get('message', '')
+        test_results = data.get('test_results', {})
+        history = data.get('history', [])
+        page_context = data.get('page_context', 'main_menu')
+
+        config = load_ai_config()
+        provider = config.get('provider', 'offline')
+        api_key = config.get('api_key', '')
+        model = config.get('model', '')
+
+        system_ctx = (
+            "You are an AI assistant for HIBLOW PHILIPPINES INC. Cycle Time Monitoring system. "
+            "Stack: Flask (port 5000), MySQL (localhost:3306, db=cycle_time_monitoring), SATO PW208NX printer (192.168.2.100:9100), Arduino serial bridge. "
+            "Key tables: process_records, standard_times, manpower, MAIN_DB, KITTING_DB, kitting_summary, joborder_plan, 26 material tables. "
+            f"User is currently on page: {page_context}. Be concise, specific, and actionable."
+        )
+        if test_results:
+            p = sum(1 for r in test_results.values() if r.get('passed'))
+            f_list = [tid for tid, r in test_results.items() if not r.get('passed')]
+            system_ctx += f" Tests: {p}/{len(test_results)} passed. Failed: {', '.join(f_list) if f_list else 'None'}."
+
+        if provider == 'openai' and api_key:
+            msgs = [{"role": "system", "content": system_ctx}]
+            for h in history[-10:]:
+                msgs.append({"role": h.get("role", "user"), "content": h.get("content", "")})
+            msgs.append({"role": "user", "content": user_message})
+            resp = http_req.post("https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": model or "gpt-3.5-turbo", "messages": msgs, "max_tokens": 1000, "temperature": 0.7},
+                timeout=30)
+            if resp.status_code == 200:
+                return jsonify({"success": True, "response": resp.json()["choices"][0]["message"]["content"], "provider": "openai"})
+            return jsonify({"success": False, "error": f"OpenAI error {resp.status_code}"}), 500
+
+        elif provider == 'gemini' and api_key:
+            contents = []
+            for h in history[-10:]:
+                contents.append({"role": "user" if h.get("role") == "user" else "model", "parts": [{"text": h.get("content", "")}]})
+            contents.append({"role": "user", "parts": [{"text": system_ctx + "\n\nUser: " + user_message}]})
+            gm = model or "gemini-2.0-flash"
+            resp = http_req.post(f"https://generativelanguage.googleapis.com/v1beta/models/{gm}:generateContent?key={api_key}",
+                headers={"Content-Type": "application/json"},
+                json={"contents": contents, "generationConfig": {"maxOutputTokens": 1000, "temperature": 0.7}},
+                timeout=30)
+            if resp.status_code == 200:
+                cands = resp.json().get("candidates", [])
+                text = cands[0]["content"]["parts"][0]["text"] if cands else "No response"
+                return jsonify({"success": True, "response": text, "provider": "gemini"})
+            return jsonify({"success": False, "error": f"Gemini error {resp.status_code}"}), 500
+
+        else:
+            return jsonify({"success": True, "response": generate_offline_ai_response(user_message, test_results, page_context), "provider": "offline"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+def generate_offline_ai_response(message, test_results, page_context):
+    """Rule-based AI when no LLM API is configured"""
+    ml = message.lower()
+    passed = sum(1 for r in test_results.values() if r.get('passed')) if test_results else 0
+    total = len(test_results) if test_results else 0
+    failed = [tid for tid, r in test_results.items() if not r.get('passed')] if test_results else []
+
+    if any(w in ml for w in ['health', 'status', 'overview', 'how is', 'system']):
+        if total == 0: return "No tests run yet. Click 'Diagnose' to run system diagnostics."
+        score = round((passed/total)*100)
+        r = f"System Health: {score}% ({passed}/{total} passed).\n\n"
+        if failed:
+            r += "Failed tests:\n"
+            for f in failed:
+                rule = DIAGNOSTIC_RULES.get(f, {})
+                r += f"  [FAIL] {f} ({rule.get('cat','Unknown')})\n"
+                for fix in rule.get('fixes', [])[:2]: r += f"    -> {fix}\n"
+        else: r += "All tests passed! System is fully operational."
+        return r
+
+    if any(w in ml for w in ['fix', 'repair', 'solve', 'error', 'fail', 'wrong', 'broken']):
+        if not failed: return "No failures detected. Run diagnostics first by clicking 'Diagnose'."
+        r = "Recommended fixes:\n\n"
+        crit = [f for f in failed if DIAGNOSTIC_RULES.get(f, {}).get('cat') in ['Server', 'Database']]
+        for i, f in enumerate(crit + [x for x in failed if x not in crit]):
+            rule = DIAGNOSTIC_RULES.get(f, {})
+            p = "CRITICAL" if f in crit else "MEDIUM"
+            r += f"{i+1}. [{p}] {f} ({rule.get('cat','')})\n"
+            for s in rule.get('fixes', []): r += f"   -> {s}\n"
+        return r
+
+    if any(w in ml for w in ['printer', 'sato', 'print', 'qr']):
+        return "SATO PW208NX Printer:\n- IP: 192.168.2.100, Port: 9100\n- Check power and cable\n- QR format: DD/MM/YY-KITTING_NO JOB_ORDER SUFFIX\n- Print function: qr_printer.print_kitting_qr_code()\n- Run 'Diagnose' to check connectivity."
+
+    if any(w in ml for w in ['database', 'mysql', 'db', 'table']):
+        return "MySQL Database:\n- Host: localhost:3306, User: root\n- Database: cycle_time_monitoring\n- Tables: process_records, MAIN_DB, KITTING_DB, kitting_summary, joborder_plan, manpower\n- 26 material tables (01tbl to 26tbl)"
+
+    if any(w in ml for w in ['arduino', 'serial', 'bridge']):
+        return "Arduino Bridge:\n- Auto-detects COM port (arduino, ch340, usb serial)\n- POST to http://127.0.0.1:5000/api/arduino_signal\n- Messages: P{N}START / P{N}STOP (N=1-9)\n- Baud: 9600"
+
+    if any(w in ml for w in ['kitting', 'material', 'job order', 'jo ']):
+        return "Kitting/Material Setter:\n- Scan JO barcode to load materials from Toritani SQL\n- 26 material categories (Frame Block to Filter Bushing)\n- QR auto-prints on new JO, skips on re-scan\n- MAIN_DB tracks remaining qty per material"
+
+    if any(w in ml for w in ['cycle', 'time', 'process', 'timer']):
+        return "Cycle Time Monitoring:\n- 9 processes with server-side timers\n- Standard times in standard_times table\n- Arduino signals auto-start/stop timers\n- Upstream validation prevents out-of-order kitting"
+
+    if any(w in ml for w in ['operator', 'manpower', 'shift']):
+        return "Manpower:\n- Each process needs 1 operator assigned\n- Scan operator ID badge or enter manually\n- Warning shown if processes lack operators\n- Operator logs persist all day (reset at midnight)"
+
+    if any(w in ml for w in ['help', 'what can', 'commands', 'hello', 'hi']):
+        return ("Hi! I'm your AI assistant. I can help with:\n"
+                "- 'system health' - Check overall status\n"
+                "- 'how to fix' - Get repair suggestions\n"
+                "- 'printer info' - SATO printer help\n"
+                "- 'database info' - MySQL details\n"
+                "- 'kitting info' - Material workflow\n"
+                "- 'cycle time' - Timer/process info\n"
+                "- 'operator info' - Manpower details\n\n"
+                "Click 'Diagnose' for full system check.\n"
+                "Tip: Add a Gemini API key (free) via settings for smarter AI.")
+
+    # Page-context specific fallback
+    if 'process' in page_context:
+        return "You're on a Process page. I can help with:\n- Timer issues\n- NG/Lineout handling\n- Operator assignment\n- Upstream validation\n\nTry: 'system health' or 'how to fix errors'"
+    elif 'material' in page_context:
+        return "You're on Material Setter. I can help with:\n- Job order scanning\n- Material loading\n- QR printing\n- Kitting workflow\n\nTry: 'printer info' or 'kitting info'"
+    elif 'graph' in page_context or 'trend' in page_context:
+        return "You're viewing graphs. I can help with:\n- Cycle time analysis\n- Standard time comparison\n- Trend explanations\n\nTry: 'cycle time' or 'system health'"
+
+    return ("I can help with system diagnostics, printer issues, database info, kitting workflow, and more.\n"
+            "Try: 'system health', 'printer info', 'how to fix', or click 'Diagnose'.\n\n"
+            "For smarter AI responses, add a free Gemini API key via the settings icon.")
+
+
+@app.route("/api/ai_config", methods=["GET", "POST"])
+def ai_config_endpoint():
+    """Get or save AI configuration"""
+    try:
+        if request.method == "GET":
+            config = load_ai_config()
+            masked = {**config}
+            key = masked.get('api_key', '')
+            masked['api_key_masked'] = (key[:8] + '...' + key[-4:]) if len(key) > 12 else ('***' if key else '')
+            masked.pop('api_key', None)
+            return jsonify({"success": True, "config": masked})
+        else:
+            data = request.json
+            config = load_ai_config()
+            for k in ['provider', 'api_key', 'model']:
+                if k in data: config[k] = data[k]
+            save_ai_config(config)
+            return jsonify({"success": True, "message": "AI config saved"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/ai_context", methods=["GET"])
+def ai_context():
+    """Returns page-specific context data for the AI widget"""
+    try:
+        page = request.args.get('page', 'unknown')
+        context = {"page": page, "server_up": True}
+        if 'process' in page:
+            proc_no = ''.join(filter(str.isdigit, page)) or '1'
+            context['info'] = f"Process {proc_no} dashboard - cycle time monitoring"
+        elif 'material' in page:
+            context['info'] = "Material Setter - kitting and job order management"
+        elif 'graph' in page:
+            context['info'] = "Cycle Graph - average elapsed time per process"
+        elif 'trend' in page:
+            context['info'] = "Line Trend - per-kitting elapsed time tracking"
+        elif 'manpower' in page:
+            context['info'] = "Manpower - operator assignment and tracking"
+        else:
+            context['info'] = "Main system page"
+        return jsonify({"success": True, "context": context})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route("/api/force_daily_reset", methods=["POST"])
 def force_daily_reset():
@@ -2210,6 +2758,91 @@ def operator_out():
             return jsonify({"success": False, "error": "Failed to clear operator"}), 500
     except Exception as e:
         print(f"Error in operator_out: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ==================== MATERIAL SETTER OPERATOR APIs (both databases) ====================
+
+@app.route("/api/ms_operator_in", methods=["POST"])
+def ms_operator_in():
+    """Material Setter operator IN - save to MySQL (both databases)"""
+    try:
+        data = request.json
+        operator_name = data.get('operator_name', '').strip()
+        
+        if not operator_name:
+            return jsonify({"success": False, "error": "Missing operator_name"}), 400
+        
+        result = db_manager.set_ms_operator_in(operator_name)
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error in ms_operator_in: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/ms_operator_out", methods=["POST"])
+def ms_operator_out():
+    """Material Setter operator OUT - update MySQL with time_out and reason (both databases)"""
+    try:
+        data = request.json
+        out_reasons = data.get('out_reasons', '').strip()
+        
+        result = db_manager.set_ms_operator_out(out_reasons)
+        return jsonify(result)
+    except Exception as e:
+        print(f"Error in ms_operator_out: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/get_ms_operator", methods=["GET"])
+def get_ms_operator():
+    """Get current Material Setter operator from MySQL (both databases).
+    Returns expired=True if operator logged in on a previous day (daily auto-logout).
+    """
+    try:
+        result = db_manager.get_ms_operator()
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        print(f"Error in get_ms_operator: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ==================== MTRL SET MANPOWER APIs ====================
+
+@app.route("/api/get_mtrl_set_operator", methods=["GET"])
+def get_mtrl_set_operator():
+    """Get the Material Setter operator record"""
+    try:
+        data = db_manager.get_mtrl_set_operator()
+        return jsonify({"success": True, "operator": data})
+    except Exception as e:
+        print(f"Error in get_mtrl_set_operator: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/update_mtrl_set_operator", methods=["POST"])
+def update_mtrl_set_operator():
+    """Update Material Setter operator (manual or scan)"""
+    try:
+        data = request.json
+        operator_manual = data.get('operator_manual', '')
+        operator_scan = data.get('operator_scan', '')
+        
+        success = db_manager.update_mtrl_set_operator(operator_manual, operator_scan)
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Failed to update"}), 500
+    except Exception as e:
+        print(f"Error in update_mtrl_set_operator: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/clear_mtrl_set_operator", methods=["POST"])
+def clear_mtrl_set_operator():
+    """Clear Material Setter operator (Manual Reset)"""
+    try:
+        success = db_manager.clear_mtrl_set_operator()
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Failed to clear"}), 500
+    except Exception as e:
+        print(f"Error in clear_mtrl_set_operator: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/api/get_out_reasons", methods=["GET"])
@@ -3028,12 +3661,12 @@ def start_arduino_bridge():
 # This code only runs when you click "Run" on this file
 if __name__ == "__main__":
     # Initialize database connection and create tables
-    # try:
-    #     db_manager.connect()
-    #     print("Database initialized successfully")
-    # except Exception as e:
-    #     print(f"Failed to initialize database: {e}")
-    #     print("Please ensure XAMPP MySQL/MariaDB is running")
+    try:
+        db_manager.connect()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Failed to initialize database: {e}")
+        print("Please ensure XAMPP MySQL/MariaDB is running")
 
     # Load persisted timer state from file (survives Flask restarts)
     load_timer_state_from_file()

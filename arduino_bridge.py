@@ -120,13 +120,34 @@ def main():
     
     print(f"\n>>> Connecting to Arduino on {com_port} at {args.baud} baud...")
     
+    #  (1A START) Retry connection up to 5 times (handles "Access is denied" when port is temporarily busy)
+    MAX_RETRIES = 5
+    RETRY_DELAY = 3  # seconds
+    ser = None
+    
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            ser = serial.Serial(com_port, args.baud, timeout=1)
+            time.sleep(2)  # Wait for Arduino to reset after serial connection
+            print(f">>> Connected successfully to {com_port}!")
+            break
+        except serial.SerialException as e:
+            if attempt < MAX_RETRIES:
+                print(f"    [Retry {attempt}/{MAX_RETRIES}] {com_port} busy ({e}) - retrying in {RETRY_DELAY}s...")
+                time.sleep(RETRY_DELAY)
+            else:
+                print(f"\nERROR: Could not open {com_port} after {MAX_RETRIES} attempts: {e}")
+                print("Make sure:")
+                print("  1. Arduino is connected")
+                print("  2. The correct COM port is specified")
+                print("  3. No other program is using the port (close Arduino IDE Serial Monitor)")
+                sys.exit(1)
+    #  (1A END)
+
+    print(f">>> Listening for button presses...\n")
+    print("-" * 50)
+    
     try:
-        ser = serial.Serial(com_port, args.baud, timeout=1)
-        time.sleep(2)  # Wait for Arduino to reset after serial connection
-        print(f">>> Connected successfully to {com_port}!")
-        print(f">>> Listening for button presses...\n")
-        print("-" * 50)
-        
         while True:
             if ser.in_waiting > 0:
                 try:
@@ -154,19 +175,16 @@ def main():
                     print(f"  -> Unknown message (ignored)")
             
             time.sleep(0.01)  # Small delay to prevent CPU spinning
-            
+    #  (1A START)  Cleaned up exception handling for lost connection and KeyboardInterrupt
     except serial.SerialException as e:
-        print(f"\nERROR: Could not open {com_port}: {e}")
-        print("Make sure:")
-        print("  1. Arduino is connected")
-        print("  2. The correct COM port is specified")
-        print("  3. No other program is using the port (close Arduino IDE Serial Monitor)")
+        print(f"\nERROR: Serial connection lost: {e}")
         sys.exit(1)
     except KeyboardInterrupt:
         print("\n\n>>> Bridge stopped by user (Ctrl+C)")
-        if 'ser' in locals():
+        if ser:
             ser.close()
         sys.exit(0)
+    #  (1A START)
 
 if __name__ == "__main__":
     main()

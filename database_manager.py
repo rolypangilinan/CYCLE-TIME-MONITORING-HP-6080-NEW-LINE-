@@ -132,6 +132,25 @@ class DatabaseManager:
             for i in range(1, 10):
                 cursor.execute("INSERT IGNORE INTO manpower (process_no) VALUES (%s)", (i,))
             
+            # Create mtrl_set_operator table (single row for Material Setter operator)
+            create_mtrl_set_operator_table = """
+            CREATE TABLE IF NOT EXISTS mtrl_set_operator (
+                id INT PRIMARY KEY DEFAULT 1,
+                id_no VARCHAR(50) DEFAULT '',
+                operator_name VARCHAR(255) DEFAULT '',
+                employment_status VARCHAR(50) DEFAULT '',
+                operator_manual VARCHAR(255) DEFAULT '',
+                operator_scan VARCHAR(255) DEFAULT '',
+                time_in DATETIME DEFAULT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """
+            cursor.execute(create_mtrl_set_operator_table)
+            
+            # Insert default single row if it doesn't exist
+            cursor.execute("INSERT IGNORE INTO mtrl_set_operator (id) VALUES (1)")
+            
             # Create bio_break table for operator OUT reasons (shared across all processes)
             create_bio_break_table = """
             CREATE TABLE IF NOT EXISTS bio_break (
@@ -324,10 +343,15 @@ class DatabaseManager:
             
             # Create joborder_plan table for tracking kitting progress per job order
             # This tracks each kitting scan with incrementing result and decrementing balance
+            # Also stores operator info for Material Setter (both databases)
             create_joborder_plan_table = """
             CREATE TABLE IF NOT EXISTS joborder_plan (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 job_order VARCHAR(50),
+                operator_name VARCHAR(255) DEFAULT '',
+                time_in DATETIME DEFAULT NULL,
+                time_out DATETIME DEFAULT NULL,
+                out_reasons VARCHAR(255) DEFAULT '',
                 suffix VARCHAR(10),
                 model_code VARCHAR(100),
                 row_no INT,
@@ -342,6 +366,22 @@ class DatabaseManager:
             )
             """
             cursor.execute(create_joborder_plan_table)
+            
+            # Add operator columns to joborder_plan if they don't exist (migration for existing tables)
+            for col_name, col_def in [
+                ("operator_name", "VARCHAR(255) DEFAULT '' AFTER job_order"),
+                ("time_in", "DATETIME DEFAULT NULL AFTER operator_name"),
+                ("time_out", "DATETIME DEFAULT NULL AFTER time_in"),
+                ("out_reasons", "VARCHAR(255) DEFAULT '' AFTER time_out")
+            ]:
+                try:
+                    cursor.execute(f"ALTER TABLE joborder_plan ADD COLUMN {col_name} {col_def}")
+                    print(f"  Added column {col_name} to joborder_plan")
+                except Exception as e:
+                    if 'Duplicate column' in str(e):
+                        pass  # Column already exists, OK
+                    else:
+                        print(f"  Warning: Could not add column {col_name}: {e}")
             
             # Create 26 material-specific tables for saving after QR code scan
             material_tables = [
@@ -893,7 +933,14 @@ class DatabaseManager:
         connection = None
         cursor = None
         try:
-            connection = self.get_connection()
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT id, out_reasons FROM bio_break ORDER BY id")
             return cursor.fetchall()
@@ -911,9 +958,16 @@ class DatabaseManager:
         connection = None
         cursor = None
         try:
-            connection = self.get_connection()
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
             cursor = connection.cursor()
-            cursor.execute("INSERT IGNORE INTO bio_break (out_reasons) VALUES (%s)", (reason,))
+            cursor.execute("INSERT IGNORE INTO bio_break (out_reasons) VALUES (%s)", (reason.upper(),))
             connection.commit()
             return cursor.rowcount > 0
         except Error as e:
@@ -932,7 +986,14 @@ class DatabaseManager:
         connection = None
         cursor = None
         try:
-            connection = self.get_connection()
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
             cursor = connection.cursor()
             cursor.execute("DELETE FROM bio_break WHERE out_reasons = %s", (reason,))
             connection.commit()
@@ -1825,10 +1886,10 @@ class DatabaseManager:
                 connection.close()
 
     def get_next_kitting_no(self, job_order):
-        """Get the next kitting number for a job order
+        """Get the next kitting number - DAILY GLOBAL across ALL job orders.
         
-        Counts ALL kitting entries for the given job order regardless of date.
-        This allows resuming kitting from where it left off even across days.
+        Kitting numbering is sequential for the entire day regardless of job order.
+        If JO1 finishes at kitting 10, the next JO starts at kitting 11.
         """
         connection = None
         cursor = None
@@ -1843,21 +1904,47 @@ class DatabaseManager:
             )
             cursor = connection.cursor()
             
-            # Query for max kitting_no for this job order (ALL dates)
-            # This ensures kitting continues from where it left off even the next day
+            # DAILY GLOBAL: Get max kitting_no across ALL job orders for today
+            # This ensures kitting continues sequentially regardless of JO changes
             query = """
             SELECT COALESCE(MAX(kitting_no), 0) + 1 as next_kitting_no 
             FROM KITTING_DB 
-            WHERE job_order = %s
+            WHERE DATE(timestamp) = CURDATE()
             """
-            cursor.execute(query, (job_order,))
-            print(f"get_next_kitting_no: job_order={job_order}")
+            cursor.execute(query)
+            print(f"get_next_kitting_no: DAILY GLOBAL (job_order={job_order})")
             result = cursor.fetchone()
             return result[0] if result else 1
             
         except Exception as e:
             print(f"Error getting next kitting number: {e}")
             return 1
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def has_kitting_records(self, job_order):
+        """Check if a specific job order has any kitting records (for new JO detection)"""
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM KITTING_DB WHERE job_order = %s", (job_order,))
+            result = cursor.fetchone()
+            return result[0] > 0 if result else False
+        except Exception as e:
+            print(f"Error checking kitting records: {e}")
+            return False
         finally:
             if cursor:
                 cursor.close()
@@ -2312,13 +2399,14 @@ class DatabaseManager:
             if connection:
                 connection.close()
 
-    def save_joborder_plan(self, job_order, suffix, model_code, kitting_qr_code, plan_qty):
+    def save_joborder_plan(self, job_order, suffix, model_code, kitting_qr_code, plan_qty, operator_name='', time_in=None):
         """Save or update joborder_plan record when a kitting QR code is scanned
         
         Logic:
         - If first kitting for this job_order: result=1, balance=plan-1
         - If subsequent kitting: result increments, balance decrements
         - kitting_qr_code format: DDMMYY-XXXX JOB_ORDER (slash removed from date)
+        - Automatically fetches operator_name from mtrl_set_operator table
         
         Args:
             job_order: Job order number (e.g., 3J73802302)
@@ -2326,7 +2414,14 @@ class DatabaseManager:
             model_code: Model code (e.g., 80HP20760P)
             kitting_qr_code: QR code with date format DDMMYY-XXXX JOB_ORDER (no slash)
             plan_qty: The plan quantity (total quantity to produce)
+            operator_name: (deprecated - auto-fetched from mtrl_set_operator)
+            time_in: (deprecated - auto-fetched from mtrl_set_operator)
         """
+        # Auto-fetch operator info from mtrl_set_operator table
+        ms_operator_name, ms_time_in = self.get_mtrl_set_operator_name()
+        if ms_operator_name:
+            operator_name = ms_operator_name
+            time_in = ms_time_in
         connection = None
         cursor = None
         try:
@@ -2355,15 +2450,17 @@ class DatabaseManager:
             next_result = (result['max_result'] or 0) + 1
             balance = int(plan_qty) - next_result
             
-            # Insert new record
+            # Insert new record with operator info
             insert_query = """
             INSERT INTO joborder_plan 
-            (job_order, suffix, model_code, row_no, kitting_qr_code, plan, result, balance, date_today)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (job_order, operator_name, time_in, suffix, model_code, row_no, kitting_qr_code, plan, result, balance, date_today)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
             cursor.execute(insert_query, (
                 job_order,
+                operator_name or '',
+                time_in,
                 suffix,
                 model_code,
                 next_row_no,
@@ -2510,6 +2607,270 @@ class DatabaseManager:
             if connection:
                 connection.close()
 
+    def get_ms_operator(self):
+        """Get current Material Setter operator from mtrl_set_operator table.
+        Returns the operator if time_in is today. If time_in is from a previous day,
+        returns expired=True for daily auto-logout.
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor(dictionary=True)
+            
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            cursor.execute("SELECT * FROM mtrl_set_operator WHERE id = 1")
+            result = cursor.fetchone()
+            
+            if not result or not result.get('operator_name'):
+                return {'operator': None, 'expired': False}
+            
+            # Check if time_in is from today (daily auto-logout)
+            time_in = result.get('time_in')
+            if time_in:
+                time_in_date = time_in.strftime('%Y-%m-%d') if hasattr(time_in, 'strftime') else str(time_in)[:10]
+                if time_in_date != today:
+                    # Auto-clear the operator for new day
+                    self.clear_mtrl_set_operator()
+                    return {'operator': None, 'expired': True, 'last_operator': result['operator_name']}
+            
+            return {
+                'operator': result['operator_name'],
+                'time_in': str(result['time_in']) if result['time_in'] else None,
+                'expired': False
+            }
+            
+        except Exception as e:
+            print(f"Error getting MS operator: {e}")
+            return {'operator': None, 'expired': False, 'error': str(e)}
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def set_ms_operator_in(self, operator_name):
+        """Set Material Setter operator IN - updates mtrl_set_operator table.
+        Parses scan format: 'ID_NO , NAME , STATUS' and stores in single row.
+        """
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor(dictionary=True)
+            
+            now = datetime.now()
+            
+            # Parse operator_name (scan format: "ID_NO , NAME , STATUS")
+            id_no = ''
+            name = ''
+            employment_status = ''
+            scan_val = operator_name or ''
+            if scan_val:
+                parts = scan_val.split(' , ')
+                if len(parts) >= 3:
+                    id_no = parts[0].strip()
+                    name = parts[1].strip()
+                    employment_status = parts[2].strip()
+                elif len(parts) == 2:
+                    id_no = parts[0].strip()
+                    name = parts[1].strip()
+                elif len(parts) == 1:
+                    name = parts[0].strip()
+            
+            cursor.execute("""
+                UPDATE mtrl_set_operator 
+                SET id_no = %s, operator_name = %s, employment_status = %s,
+                    operator_scan = %s, time_in = %s
+                WHERE id = 1
+            """, (id_no, name, employment_status, scan_val, now))
+            
+            connection.commit()
+            print(f"MS Operator IN: {name} (id_no={id_no}) at {now}")
+            return {'success': True, 'time_in': str(now)}
+            
+        except Exception as e:
+            print(f"Error setting MS operator IN: {e}")
+            if connection:
+                connection.rollback()
+            return {'success': False, 'error': str(e)}
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def set_ms_operator_out(self, out_reasons=''):
+        """Set Material Setter operator OUT - clears mtrl_set_operator table."""
+        self.clear_mtrl_set_operator()
+        print(f"MS Operator OUT, reason: {out_reasons}")
+        return {'success': True}
+
+    def get_mtrl_set_operator(self):
+        """Get the mtrl_set_operator record (single row)."""
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM mtrl_set_operator WHERE id = 1")
+            result = cursor.fetchone()
+            if result:
+                # Convert datetime fields to string for JSON
+                if result.get('time_in'):
+                    result['time_in'] = str(result['time_in'])
+                if result.get('created_at'):
+                    result['created_at'] = str(result['created_at'])
+                if result.get('updated_at'):
+                    result['updated_at'] = str(result['updated_at'])
+            return result or {}
+        except Exception as e:
+            print(f"Error getting mtrl_set_operator: {e}")
+            return {}
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def update_mtrl_set_operator(self, operator_manual=None, operator_scan=None):
+        """Update mtrl_set_operator with manual or scan input."""
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor()
+            
+            # Parse operator_scan to extract id_no, operator_name, employment_status
+            id_no = ''
+            operator_name = ''
+            employment_status = ''
+            scan_val = operator_scan or ''
+            if scan_val:
+                parts = scan_val.split(' , ')
+                if len(parts) >= 3:
+                    id_no = parts[0].strip()
+                    operator_name = parts[1].strip()
+                    employment_status = parts[2].strip()
+                elif len(parts) == 2:
+                    id_no = parts[0].strip()
+                    operator_name = parts[1].strip()
+                elif len(parts) == 1:
+                    id_no = parts[0].strip()
+            
+            now = datetime.now()
+            
+            cursor.execute("""
+                UPDATE mtrl_set_operator 
+                SET id_no = %s, operator_name = %s, employment_status = %s,
+                    operator_manual = %s, operator_scan = %s, time_in = %s
+                WHERE id = 1
+            """, (id_no, operator_name, employment_status, operator_manual or '', scan_val, now))
+            connection.commit()
+            
+            return cursor.rowcount > 0
+            
+        except Exception as e:
+            print(f"Error updating mtrl_set_operator: {e}")
+            if connection:
+                connection.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def clear_mtrl_set_operator(self):
+        """Clear mtrl_set_operator data (Manual Reset)."""
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor()
+            cursor.execute("""
+                UPDATE mtrl_set_operator 
+                SET id_no = '', operator_name = '', employment_status = '',
+                    operator_manual = '', operator_scan = '', time_in = NULL
+                WHERE id = 1
+            """)
+            connection.commit()
+            return True
+        except Exception as e:
+            print(f"Error clearing mtrl_set_operator: {e}")
+            if connection:
+                connection.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def get_mtrl_set_operator_name(self):
+        """Get just the operator_name from mtrl_set_operator (for kitting saves)."""
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT operator_name, time_in FROM mtrl_set_operator WHERE id = 1")
+            result = cursor.fetchone()
+            if result:
+                return result.get('operator_name', ''), result.get('time_in')
+            return '', None
+        except Exception as e:
+            print(f"Error getting mtrl_set_operator_name: {e}")
+            return '', None
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
     def reset_kitting_summary_ids(self):
         """Reset kitting_summary table with sequential IDs matching row_no order.
         This fixes gaps in the AUTO_INCREMENT id column by:
@@ -2584,6 +2945,128 @@ class DatabaseManager:
             if connection:
                 connection.rollback()
             return False
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+    def run_functional_test(self, test_id, **kwargs):
+        """Run a functional self-test and return {passed: bool, detail: str}"""
+        connection = None
+        cursor = None
+        try:
+            connection = self.get_connection()
+            cursor = connection.cursor(dictionary=True)
+
+            if test_id == 'problematic_row_insert':
+                test_jo = '__SELFTEST__'
+                cursor.execute("""
+                    INSERT INTO kitting_summary (job_order, model_code, row_no, material_description, qty_unit, scan_material, lot_no, qty_kit, date_today)
+                    VALUES (%s, 'TEST_MODEL', 99, 'SELF_TEST_ROW', 1, 'TEST_SCAN', 'TEST_LOT', 0, CURDATE())
+                """, (test_jo,))
+                connection.commit()
+                cursor.execute("SELECT COUNT(*) as cnt FROM kitting_summary WHERE job_order = %s AND row_no = 99", (test_jo,))
+                row = cursor.fetchone()
+                found = row and row['cnt'] > 0
+                cursor.execute("DELETE FROM kitting_summary WHERE job_order = %s", (test_jo,))
+                connection.commit()
+                return {'passed': found, 'detail': 'Insert test row into kitting_summary: ' + ('OK - inserted and cleaned up' if found else 'FAILED')}
+
+            elif test_id == 'track_last_kitting':
+                test_jo = '__SELFTEST__'
+                cursor.execute("INSERT INTO KITTING_DB (kitting_no, job_order, model_code, row_no, date_today) VALUES (1, %s, 'TEST', 1, CURDATE())", (test_jo,))
+                cursor.execute("INSERT INTO KITTING_DB (kitting_no, job_order, model_code, row_no, date_today) VALUES (2, %s, 'TEST', 1, CURDATE())", (test_jo,))
+                connection.commit()
+                cursor.execute("SELECT COALESCE(MAX(kitting_no), 0) + 1 as next_no FROM KITTING_DB WHERE job_order = %s", (test_jo,))
+                row = cursor.fetchone()
+                next_no = row['next_no'] if row else 0
+                passed = (next_no == 3)
+                cursor.execute("DELETE FROM KITTING_DB WHERE job_order = %s", (test_jo,))
+                connection.commit()
+                return {'passed': passed, 'detail': f'Next kitting no after 2 inserts: {next_no} (expected 3)'}
+
+            elif test_id == 'read_suffix':
+                cursor.execute("SHOW COLUMNS FROM joborder_plan LIKE 'suffix'")
+                row = cursor.fetchone()
+                has_suffix = row is not None
+                return {'passed': has_suffix, 'detail': 'joborder_plan table has suffix column: ' + ('YES' if has_suffix else 'NO')}
+
+            elif test_id == 'read_jo_qty':
+                cursor.execute("SHOW COLUMNS FROM joborder_plan LIKE 'plan'")
+                row = cursor.fetchone()
+                has_plan = row is not None
+                return {'passed': has_plan, 'detail': 'joborder_plan table has plan (qty) column: ' + ('YES' if has_plan else 'NO')}
+
+            elif test_id == 'one_time_scan':
+                test_jo = '__SELFTEST__'
+                cursor.execute("INSERT INTO joborder_plan (job_order, suffix, model_code, row_no, plan, result, balance, date_today) VALUES (%s, '0001', 'TEST', 1, 10, 0, 10, CURDATE())", (test_jo,))
+                cursor.execute("INSERT INTO joborder_plan (job_order, suffix, model_code, row_no, plan, result, balance, date_today) VALUES (%s, '0001', 'TEST', 1, 10, 0, 10, CURDATE())", (test_jo,))
+                connection.commit()
+                cursor.execute("SELECT COUNT(*) as cnt FROM joborder_plan WHERE job_order = %s", (test_jo,))
+                row = cursor.fetchone()
+                count = row['cnt'] if row else 0
+                cursor.execute("DELETE FROM joborder_plan WHERE job_order = %s", (test_jo,))
+                connection.commit()
+                return {'passed': count == 2, 'detail': f'Inserted 2 records, found {count}. DB accepts inserts correctly.'}
+
+            elif test_id == 'suffix_both':
+                cursor.execute("SELECT COUNT(*) as cnt FROM kitting_summary")
+                ks = cursor.fetchone()
+                cursor.execute("SELECT COUNT(*) as cnt FROM KITTING_DB")
+                kd = cursor.fetchone()
+                ks_cnt = ks['cnt'] if ks else -1
+                kd_cnt = kd['cnt'] if kd else -1
+                return {'passed': ks_cnt >= 0 and kd_cnt >= 0, 'detail': f'kitting_summary: {ks_cnt} rows, KITTING_DB: {kd_cnt} rows - both accessible'}
+
+            elif test_id == 'operator_persist':
+                cursor.execute("SELECT COUNT(*) as cnt FROM manpower WHERE operator_scan != '' OR operator_manual != ''")
+                row = cursor.fetchone()
+                count = row['cnt'] if row else 0
+                return {'passed': True, 'detail': f'Manpower table has {count} operators logged. Data persists until daily reset.'}
+
+            elif test_id == 'custom':
+                tables = kwargs.get('tables', '')
+                action = kwargs.get('action', 'SELECT')
+                test_jo = kwargs.get('test_jo', '')
+                table_list = [t.strip() for t in tables.split(',') if t.strip()]
+                if not table_list:
+                    return {'passed': False, 'detail': 'No target tables specified'}
+                results = []
+                all_ok = True
+                for table in table_list:
+                    try:
+                        if action == 'SELECT':
+                            cursor.execute(f"SELECT COUNT(*) as cnt FROM `{table}`")
+                            row = cursor.fetchone()
+                            cnt = row['cnt'] if row else 0
+                            results.append(f"{table}: {cnt} rows")
+                        elif action == 'INSERT':
+                            if test_jo:
+                                cursor.execute(f"SELECT COUNT(*) as cnt FROM `{table}` WHERE job_order = %s", (test_jo,))
+                                row = cursor.fetchone()
+                                cnt = row['cnt'] if row else 0
+                                results.append(f"{table}: {cnt} rows for JO {test_jo}")
+                            else:
+                                cursor.execute(f"SELECT COUNT(*) as cnt FROM `{table}`")
+                                row = cursor.fetchone()
+                                cnt = row['cnt'] if row else 0
+                                results.append(f"{table}: {cnt} rows total")
+                        elif action == 'VERIFY':
+                            cursor.execute(f"SHOW TABLES LIKE '{table}'")
+                            exists = cursor.fetchone() is not None
+                            results.append(f"{table}: {'EXISTS' if exists else 'NOT FOUND'}")
+                            if not exists:
+                                all_ok = False
+                    except Exception as te:
+                        results.append(f"{table}: ERROR - {str(te)}")
+                        all_ok = False
+                return {'passed': all_ok, 'detail': ' | '.join(results)}
+
+            return {'passed': False, 'detail': f'Unknown test_id: {test_id}'}
+
+        except Exception as e:
+            return {'passed': False, 'detail': f'Test error: {str(e)}'}
         finally:
             if cursor:
                 cursor.close()

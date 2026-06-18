@@ -1,0 +1,5 @@
+{
+  "provider": "offline",
+  "api_key": "",
+  "model": "gpt-3.5-turbo"
+}
