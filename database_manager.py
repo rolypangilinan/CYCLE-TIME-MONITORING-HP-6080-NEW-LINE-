@@ -728,7 +728,14 @@ class DatabaseManager:
         connection = None
         cursor = None
         try:
-            connection = self.get_connection()
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
             cursor = connection.cursor(dictionary=True)
             
             query = "SELECT process_no, standard_time, title FROM standard_times ORDER BY process_no"
@@ -751,7 +758,14 @@ class DatabaseManager:
         connection = None
         cursor = None
         try:
-            connection = self.get_connection()
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
             cursor = connection.cursor()
             
             if title is not None:
@@ -780,7 +794,14 @@ class DatabaseManager:
         connection = None
         cursor = None
         try:
-            connection = self.get_connection()
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
             cursor = connection.cursor()
             
             # Get the next process number
@@ -811,7 +832,14 @@ class DatabaseManager:
         connection = None
         cursor = None
         try:
-            connection = self.get_connection()
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
             cursor = connection.cursor()
             
             # Delete from standard_times table
@@ -842,7 +870,14 @@ class DatabaseManager:
         connection = None
         cursor = None
         try:
-            connection = self.get_connection()
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
             cursor = connection.cursor(dictionary=True)
             
             query = "SELECT process_no, id_no, operator_name, employment_status, operator_manual, operator_scan FROM manpower ORDER BY process_no"
@@ -865,7 +900,14 @@ class DatabaseManager:
         connection = None
         cursor = None
         try:
-            connection = self.get_connection()
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
             cursor = connection.cursor()
             
             # Parse operator_scan to extract id_no, operator_name, employment_status
@@ -911,7 +953,14 @@ class DatabaseManager:
         connection = None
         cursor = None
         try:
-            connection = self.get_connection()
+            connection = mysql.connector.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database_name,
+                consume_results=True
+            )
             cursor = connection.cursor()
             query = "UPDATE manpower SET id_no = '', operator_name = '', employment_status = '', operator_manual = '', operator_scan = '' WHERE process_no = %s"
             cursor.execute(query, (process_no,))
@@ -1657,6 +1706,7 @@ class DatabaseManager:
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
                 id = VALUES(id),
+                job_order = VALUES(job_order),
                 model_code = VALUES(model_code),
                 material_description = VALUES(material_description),
                 qty_unit = VALUES(qty_unit),

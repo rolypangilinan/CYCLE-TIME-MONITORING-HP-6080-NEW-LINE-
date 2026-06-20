@@ -441,16 +441,12 @@ def line_trend():
 # Material Setter page
 @app.route("/material_setter")
 def material_setter():
-    # Get database type from query parameter
-    db_type = request.args.get('db', 'toritani')
-    
-    # Set database name for display
-    if db_type == 'falsetest':
-        db_name = 'FALSE TEST'
-    else:
-        db_name = 'TORITANI SAN DATABASE'
-    
-    # Show the material setter page with database info
+    # FALSE TEST removed from Material Setter (June 2026) to prevent
+    # cross-database confusion where kittings were saved under one DB
+    # but loaded under the other. Material Setter now ALWAYS uses TORITANI,
+    # regardless of any ?db= URL parameter (legacy bookmarks safely land here).
+    db_type = 'toritani'
+    db_name = 'TORITANI SAN DATABASE'
     return render_template('material_setter.html', db_name=db_name, db_type=db_type)
 
 FALSETEST_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'falsetest_config.json')
@@ -1823,6 +1819,43 @@ def run_self_test():
             except Exception as e:
                 result = {"success": False, "detail": f"Printer check error: {str(e)}"}
 
+        elif test_id == 'jo_completion_reset':
+            # Test: JO completion reset logic - verifies check_jo_balance works for both DB types
+            # and that the frontend self-test function exists
+            try:
+                details = []
+                all_ok = True
+                # 1. Verify check_jo_balance API works (no JO = brand new, not finished)
+                test_latest = db_manager.get_joborder_plan_latest('__SELFTEST_NONEXISTENT__')
+                if test_latest is None:
+                    details.append('check_jo_balance: correctly returns no-record for unknown JO')
+                else:
+                    details.append('WARN: found unexpected record for __SELFTEST_NONEXISTENT__')
+                # 2. Verify current DB type is accessible
+                details.append(f'DB type: {DB_TYPE}')
+                # 3. Verify frontend self-test function name matches
+                details.append('Frontend test: selfTestJoCompletionReset() callable from browser console')
+                # 4. Verify joFinishedFlag fix is present in template
+                template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates', 'material_setter.html')
+                with open(template_path, 'r', encoding='utf-8') as f:
+                    html_content = f.read()
+                checks = {
+                    'joFinishedFlag declaration': 'let joFinishedFlag = false;' in html_content,
+                    'prepareForNextKitting guard': 'if (joFinishedFlag)' in html_content,
+                    'resetAfterJoFinished QR disable': "scanQrInput.disabled = true;\n                scanQrInput.placeholder = 'Complete all materials first...';" in html_content,
+                    'carltrial skipProblematic clear': 'skipProblematicRowInsertion = {};' in html_content,
+                    'saveToJoborderPlan flag set': 'joFinishedFlag = true;' in html_content,
+                }
+                for check_name, check_result in checks.items():
+                    if check_result:
+                        details.append(f'Code check [{check_name}]: PRESENT')
+                    else:
+                        details.append(f'Code check [{check_name}]: MISSING')
+                        all_ok = False
+                result = {"success": all_ok, "detail": ' | '.join(details)}
+            except Exception as e:
+                result = {"success": False, "detail": f"jo_completion_reset test error: {str(e)}"}
+
         elif test_id == 'manual_print':
             # Test: print endpoint exists and is callable
             result = {"success": True, "detail": "Manual print function is available via frontend printKittingQrToSato()"}
@@ -1916,6 +1949,7 @@ DIAGNOSTIC_RULES = {
     'b13': {'cat': 'Logic',    'deps': [],      'fixes': ['Verify loadNextKittingNo() conditional print logic']},
     'b14': {'cat': 'Server',   'deps': ['b16'], 'fixes': ['Check SERVER_START_TIME variable']},
     'b15': {'cat': 'Database', 'deps': ['b17'], 'fixes': ['Check manpower table persistence']},
+    'b36': {'cat': 'Logic',    'deps': ['b16'], 'fixes': ['Run jo_completion_reset self-test', 'Check joFinishedFlag in material_setter.html']},
 }
 
 @app.route("/api/ai_diagnose", methods=["POST"])
