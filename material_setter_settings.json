@@ -62,5 +62,5 @@
   ],
   "ref_kitting_format": "text_and_num",
   "page_title": "Job Order and Material Data",
-  "qr_code_hidden": false
+  "qr_code_hidden": true
 }

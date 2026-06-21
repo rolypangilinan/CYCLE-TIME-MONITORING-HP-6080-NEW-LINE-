@@ -188,6 +188,21 @@ class DatabaseManager:
             for reason in default_lineout_reasons:
                 cursor.execute("INSERT IGNORE INTO lineout_reasons (reason) VALUES (%s)", (reason,))
             
+            # Create ms_change_model_reasons table for CHANGE MODEL reasons (Material Setter)
+            create_change_model_reasons_table = """
+            CREATE TABLE IF NOT EXISTS ms_change_model_reasons (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                reason VARCHAR(255) NOT NULL UNIQUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+            cursor.execute(create_change_model_reasons_table)
+            
+            # Insert default CHANGE MODEL reasons
+            default_change_model_reasons = ['PERFORMANCE PROBLEM', 'LACKING MATLS', 'MACHINE PROBLEM']
+            for reason in default_change_model_reasons:
+                cursor.execute("INSERT IGNORE INTO ms_change_model_reasons (reason) VALUES (%s)", (reason,))
+            
             # Create in_line_reasons table for IN-LINE reasons (shared across all processes)
             create_in_line_reasons_table = """
             CREATE TABLE IF NOT EXISTS in_line_reasons (
@@ -372,7 +387,8 @@ class DatabaseManager:
                 ("operator_name", "VARCHAR(255) DEFAULT '' AFTER job_order"),
                 ("time_in", "DATETIME DEFAULT NULL AFTER operator_name"),
                 ("time_out", "DATETIME DEFAULT NULL AFTER time_in"),
-                ("out_reasons", "VARCHAR(255) DEFAULT '' AFTER time_out")
+                ("out_reasons", "VARCHAR(255) DEFAULT '' AFTER time_out"),
+                ("change_model_reason", "VARCHAR(255) DEFAULT '' AFTER out_reasons")
             ]:
                 try:
                     cursor.execute(f"ALTER TABLE joborder_plan ADD COLUMN {col_name} {col_def}")
@@ -3122,4 +3138,93 @@ class DatabaseManager:
                 cursor.close()
             if connection:
                 connection.close()
+
+    # ==================== CHANGE MODEL (Material Setter) ====================
+    
+    def get_change_model_reasons(self):
+        """Get all CHANGE MODEL reasons from ms_change_model_reasons table"""
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host, port=self.port,
+                user=self.user, password=self.password,
+                database=self.database_name, consume_results=True
+            )
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT id, reason FROM ms_change_model_reasons ORDER BY id")
+            return cursor.fetchall()
+        except Exception as e:
+            print(f"Error fetching change model reasons: {e}")
+            return []
+        finally:
+            if cursor: cursor.close()
+            if connection: connection.close()
+
+    def add_change_model_reason(self, reason):
+        """Add a custom CHANGE MODEL reason"""
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host, port=self.port,
+                user=self.user, password=self.password,
+                database=self.database_name, consume_results=True
+            )
+            cursor = connection.cursor()
+            cursor.execute("INSERT IGNORE INTO ms_change_model_reasons (reason) VALUES (%s)", (reason.upper(),))
+            connection.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error adding change model reason: {e}")
+            return False
+        finally:
+            if cursor: cursor.close()
+            if connection: connection.close()
+
+    def delete_change_model_reason(self, reason):
+        """Delete a CHANGE MODEL reason"""
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host, port=self.port,
+                user=self.user, password=self.password,
+                database=self.database_name, consume_results=True
+            )
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM ms_change_model_reasons WHERE reason = %s", (reason,))
+            connection.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error deleting change model reason: {e}")
+            return False
+        finally:
+            if cursor: cursor.close()
+            if connection: connection.close()
+
+    def save_change_model_event(self, job_order, reason):
+        """Save change_model_reason to joborder_plan for the given job order"""
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host, port=self.port,
+                user=self.user, password=self.password,
+                database=self.database_name, consume_results=True
+            )
+            cursor = connection.cursor()
+            cursor.execute("""
+                UPDATE joborder_plan SET change_model_reason = %s 
+                WHERE job_order = %s AND row_no = (SELECT max_row FROM (SELECT MAX(row_no) as max_row FROM joborder_plan WHERE job_order = %s) as temp)
+            """, (reason, job_order, job_order))
+            connection.commit()
+            print(f"Change model reason saved to joborder_plan: JO={job_order}, reason={reason}")
+            return True
+        except Exception as e:
+            print(f"Error saving change model reason: {e}")
+            return False
+        finally:
+            if cursor: cursor.close()
+            if connection: connection.close()
 

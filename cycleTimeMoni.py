@@ -2927,6 +2927,70 @@ def delete_out_reason():
         print(f"Error in delete_out_reason: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route("/api/get_change_model_reasons", methods=["GET"])
+def get_change_model_reasons():
+    """Get all CHANGE MODEL reasons for dropdown"""
+    try:
+        reasons = db_manager.get_change_model_reasons()
+        return jsonify({"success": True, "reasons": reasons})
+    except Exception as e:
+        print(f"Error in get_change_model_reasons: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/add_change_model_reason", methods=["POST"])
+def add_change_model_reason():
+    """Add a custom CHANGE MODEL reason"""
+    try:
+        data = request.json
+        reason = data.get('reason', '').strip()
+        if not reason:
+            return jsonify({"success": False, "error": "Missing reason"}), 400
+        success = db_manager.add_change_model_reason(reason)
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Reason already exists or failed to add"}), 500
+    except Exception as e:
+        print(f"Error in add_change_model_reason: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/delete_change_model_reason", methods=["POST"])
+def delete_change_model_reason():
+    """Delete a CHANGE MODEL reason"""
+    try:
+        data = request.json
+        reason = data.get('reason', '').strip()
+        if not reason:
+            return jsonify({"success": False, "error": "Missing reason"}), 400
+        success = db_manager.delete_change_model_reason(reason)
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Reason not found or failed to delete"}), 500
+    except Exception as e:
+        print(f"Error in delete_change_model_reason: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/save_change_model", methods=["POST"])
+def save_change_model():
+    """Save change model reason to joborder_plan"""
+    try:
+        data = request.json
+        job_order = data.get('job_order', '')
+        reason = data.get('reason', '')
+        
+        if not reason:
+            return jsonify({"success": False, "error": "Missing reason"}), 400
+        
+        success = db_manager.save_change_model_event(job_order, reason)
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Failed to save change model reason"}), 500
+    except Exception as e:
+        print(f"Error in save_change_model: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route("/api/get_lineout_reasons", methods=["GET"])
 def get_lineout_reasons():
     """Get all LINE OUT reasons for dropdown"""
