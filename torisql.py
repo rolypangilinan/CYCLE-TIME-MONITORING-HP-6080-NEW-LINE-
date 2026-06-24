@@ -56,8 +56,6 @@ def getJobOrderMaterials(job_order):
     From test.test_v_JobMat_mst BOM
     WHERE 
         BOM.job =?
-        and
-        BOM.suffix ='1'
     Order BY 
         BOM.oper_num,
         BOM.sequence
@@ -100,7 +98,7 @@ def getJobOrderTotalQuantity(job_order):
 
     print("test")
 
-    return df["qty_released"].iloc[0], suffix
+    return df["qty_released"].iloc[0], str(suffix).strip().zfill(4)
 
 
 #%%
@@ -210,7 +208,7 @@ def export_to_csv(df, filename=None, options=None):
         "export_time": datetime.now().isoformat()
     }
 
-# connect()                   #THIS SHOULD BE COMMENT WHEN SCANNING JOB ORDER
+connect()                   #THIS SHOULD BE COMMENT WHEN SCANNING JOB ORDER
 # getJobOrderMaterials()      #THIS SHOULD BE COMMENT WHEN SCANNING JOB ORDER
 
 # connect()      

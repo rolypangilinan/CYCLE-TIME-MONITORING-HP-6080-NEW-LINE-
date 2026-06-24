@@ -2488,6 +2488,7 @@ class DatabaseManager:
         if ms_operator_name:
             operator_name = ms_operator_name
             time_in = ms_time_in
+        suffix = str(suffix).zfill(4)
         connection = None
         cursor = None
         try:
@@ -2709,7 +2710,7 @@ class DatabaseManager:
                     return {'operator': None, 'expired': True, 'last_operator': result['operator_name']}
             
             return {
-                'operator': result['operator_name'],
+                'operator': result.get('operator_scan') or result['operator_name'],
                 'time_in': str(result['time_in']) if result['time_in'] else None,
                 'expired': False
             }

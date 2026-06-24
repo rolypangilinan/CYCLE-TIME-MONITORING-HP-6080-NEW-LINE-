@@ -515,11 +515,11 @@ def getQuantityAndSuffix():
             
             print(f"FALSE TEST - Suffix: {suffix}")
             ft_qty = get_falsetest_quantity()
-            return jsonify({"success": True, "quantity": ft_qty, "suffix": suffix})
+            return jsonify({"success": True, "quantity": ft_qty, "suffix": str(suffix).strip().zfill(4)})
         except Exception as e:
             print(f"Error reading FALSE TEST CSV: {e}")
             ft_qty = get_falsetest_quantity()
-            return jsonify({"success": True, "quantity": ft_qty, "suffix": "0"})
+            return jsonify({"success": True, "quantity": ft_qty, "suffix": "0000"})
     else:
         # TORITANI SAN DATABASE - use SQL (retry up to 3 times on failure)
         last_error = None
@@ -547,7 +547,7 @@ def getQuantityAndSuffix():
                                 tori_suffix = middle.lstrip('0') or '0'
                                 print(f"Suffix extracted from middle: {tori_suffix}")
                 
-                return jsonify({"success": True, "quantity": int(tori_qty), "suffix": tori_suffix})
+                return jsonify({"success": True, "quantity": int(tori_qty), "suffix": str(tori_suffix).strip().zfill(4)})
             except Exception as e:
                 last_error = e
                 print(f"getQuantityAndSuffix attempt {attempt+1} failed: {e}")
@@ -3788,4 +3788,4 @@ if __name__ == "__main__":
     # port=5000: The website "door number" - like apartment 5000
     # debug=True: Shows helpful error messages if something breaks
     # app.run(host="192.168.3.220", port=5000, debug=True)  #host="0.0.0.0", port=5000 for porthost
-    app.run(host="0.0.0.0", port=5000, debug=True)  #host="0.0.0.0", port=5000 for porthost-
+    app.run(host="0.0.0.0", port=5001, debug=True)  #host="0.0.0.0", port=5000 for porthost-
