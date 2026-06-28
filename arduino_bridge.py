@@ -18,7 +18,7 @@ import sys
 import argparse
 
 # Flask server URL (default)
-FLASK_URL = "http://127.0.0.1:5000"
+FLASK_URL = "http://127.0.0.1:5001"
 
 def find_arduino_port(no_prompt=False):
     """Auto-detect Arduino COM port"""

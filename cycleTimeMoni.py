@@ -52,6 +52,12 @@ server_timers_lock = threading.Lock()
 server_counters = {}
 server_counters_lock = threading.Lock()
 
+# Material Setter button state (from Arduino tact switches)
+# ms1_loaded: True if operator ID is placed (MS1_Load_ID pressed once)
+# ms2_open: True if gate is open (MS2_Open pressed)
+ms_button_state = {"ms1_loaded": False, "ms2_open": False}
+ms_button_state_lock = threading.Lock()
+
 # Server-side blocked counters tracking (replaces localStorage blocked_counters)
 # Format: { process_no: [list of blocked kitting numbers] }
 server_blocked_counters = {}
@@ -316,6 +322,18 @@ def main_menu():
     # This is like opening the front door of our website
     return render_template('main_menu.html')
 
+# Tablet-optimized main menu page
+@app.route("/tablet_menu")
+def tablet_menu():
+    return render_template('main_menu_tablet.html')
+
+# Tablet-optimized Material Setter (Kitting Summary) page
+@app.route("/material_setter_tablet")
+def material_setter_tablet():
+    db_type = 'toritani'
+    db_name = 'TORITANI SAN DATABASE'
+    return render_template('material_setter.html', db_name=db_name, db_type=db_type, tablet_mode=True)
+
 # This is the Cycle Time Monitoring homepage route
 @app.route("/cycle_time_home")
 def cycle_time_home():
@@ -447,7 +465,7 @@ def material_setter():
     # regardless of any ?db= URL parameter (legacy bookmarks safely land here).
     db_type = 'toritani'
     db_name = 'TORITANI SAN DATABASE'
-    return render_template('material_setter.html', db_name=db_name, db_type=db_type)
+    return render_template('material_setter.html', db_name=db_name, db_type=db_type, tablet_mode=False)
 
 FALSETEST_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'falsetest_config.json')
 
@@ -1004,7 +1022,8 @@ def get_next_kitting_no():
         
         kitting_no = db_manager.get_next_kitting_no(job_order)
         is_new_jo = not db_manager.has_kitting_records(job_order)
-        return jsonify({"success": True, "kitting_no": kitting_no, "is_new_jo": is_new_jo})
+        total_today = kitting_no - 1  # highest kitting_no recorded today across ALL JOs
+        return jsonify({"success": True, "kitting_no": kitting_no, "is_new_jo": is_new_jo, "total_today": total_today})
             
     except Exception as e:
         print(f"Error getting next kitting number: {e}")
@@ -1472,6 +1491,34 @@ def get_row_count():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route("/api/save_display_rows", methods=["POST"])
+def save_display_rows():
+    """Save display rows setting for kitting summary table"""
+    try:
+        data = request.json
+        display_rows = data.get('display_rows', 25)
+        settings = load_settings_file()
+        settings['display_rows'] = display_rows
+        if save_settings_file(settings):
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": "Failed to save"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/save_qr_format", methods=["POST"])
+def save_qr_format():
+    """Save QR code date format setting (slash, dash, none)"""
+    try:
+        data = request.json
+        qr_date_format = data.get('qr_date_format', 'slash')
+        settings = load_settings_file()
+        settings['qr_date_format'] = qr_date_format
+        if save_settings_file(settings):
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": "Failed to save"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route("/api/get_model_codes", methods=["GET"])
 def get_model_codes():
     """Get model codes without bushing (23 rows)"""
@@ -1881,6 +1928,65 @@ def run_self_test():
                 result = {"success": test_data.get('passed', False), "detail": test_data.get('detail', '')}
             except Exception as e:
                 result = {"success": False, "detail": str(e)}
+
+        elif test_id == 'printer_connected':
+            # Test: check if SATO printer is installed/recognized by Windows
+            try:
+                printer_name = qr_printer.get_sato_printer_name()
+                if printer_name:
+                    result = {"success": True, "detail": f"SATO printer found: '{printer_name}'"}
+                else:
+                    all_printers = qr_printer.list_printers()
+                    result = {"success": False, "detail": f"SATO PW208NX NOT found. Installed printers: {all_printers}"}
+            except Exception as e:
+                result = {"success": False, "detail": f"Printer check error: {str(e)}"}
+
+        elif test_id == 'printer_writable':
+            # Test: check if printer handle can be opened (does NOT print anything)
+            try:
+                import win32print
+                printer_name = qr_printer.get_sato_printer_name()
+                if not printer_name:
+                    result = {"success": False, "detail": "SATO printer not found - cannot test write access"}
+                else:
+                    handle = win32print.OpenPrinter(printer_name)
+                    win32print.ClosePrinter(handle)
+                    result = {"success": True, "detail": f"Printer '{printer_name}' handle opened and closed OK - ready to receive data"}
+            except Exception as e:
+                result = {"success": False, "detail": f"Cannot open printer handle: {str(e)}"}
+
+        elif test_id == 'qr_generation':
+            # Test: verify QR code text format is correct
+            try:
+                from datetime import datetime
+                now = datetime.now()
+                test_qr = f"{now.strftime('%d/%m/%y')}-0001 TEST1234567 0001"
+                valid = len(test_qr) > 10 and '/' in test_qr and '-' in test_qr
+                result = {"success": valid, "detail": f"QR format OK: '{test_qr}' (DD/MM/YY-KITTING_NO JOB_ORDER SUFFIX)"}
+            except Exception as e:
+                result = {"success": False, "detail": f"QR generation error: {str(e)}"}
+
+        elif test_id == 'arduino_alive':
+            # Test: check if arduino_bridge.py subprocess is running
+            try:
+                import psutil
+                bridge_found = False
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    try:
+                        cmdline = proc.info.get('cmdline', []) or []
+                        if any('arduino_bridge' in str(c) for c in cmdline):
+                            bridge_found = True
+                            break
+                    except:
+                        pass
+                if bridge_found:
+                    result = {"success": True, "detail": "arduino_bridge.py process is RUNNING"}
+                else:
+                    result = {"success": False, "detail": "arduino_bridge.py process NOT found (may not be started)"}
+            except ImportError:
+                result = {"success": False, "detail": "psutil not installed - cannot check processes"}
+            except Exception as e:
+                result = {"success": False, "detail": f"Process check error: {str(e)}"}
 
         elif test_id == 'custom_functional':
             # Custom functional test from ADD TEST
@@ -3347,6 +3453,62 @@ def get_arduino_signal(process_no):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+# ==================== MATERIAL SETTER ARDUINO BUTTON SIGNALS ====================
+
+@app.route("/api/ms_arduino_signal", methods=["POST"])
+def receive_ms_arduino_signal():
+    """Receive Material Setter button signals from Arduino bridge.
+    Handles: MS1LOAD, MS1UNLOAD, MS2OPEN, P1START_MS"""
+    try:
+        data = request.json
+        signal = data.get('signal', '').upper()
+        
+        if signal == "MS1LOAD":
+            with ms_button_state_lock:
+                ms_button_state["ms1_loaded"] = True
+            print(f"MS1: ID LOADED - Operator QR ID placed at scanner")
+            return jsonify({"success": True, "state": "ms1_loaded"})
+        
+        elif signal == "MS1UNLOAD":
+            with ms_button_state_lock:
+                ms_button_state["ms1_loaded"] = False
+            # Sign out operator via existing API logic
+            try:
+                db_manager.set_ms_operator_out("Arduino: ID removed")
+                print(f"MS1: ID REMOVED - Operator signed out automatically")
+            except Exception as e:
+                print(f"MS1: ID REMOVED - Warning: could not sign out operator: {e}")
+            return jsonify({"success": True, "state": "ms1_unloaded"})
+        
+        elif signal == "MS2OPEN":
+            with ms_button_state_lock:
+                ms_button_state["ms2_open"] = True
+            print(f"MS2: GATE OPEN - Operator can get danpla")
+            return jsonify({"success": True, "state": "ms2_open"})
+        
+        elif signal == "P1START_MS":
+            with ms_button_state_lock:
+                ms_button_state["ms2_open"] = False
+            print(f"P1_START_MS: Danpla reached Process 1 - MS2 gate auto-closed")
+            return jsonify({"success": True, "state": "p1_start_ms2_closed"})
+        
+        else:
+            return jsonify({"success": False, "error": f"Unknown MS signal: {signal}"}), 400
+    
+    except Exception as e:
+        print(f"Error in receive_ms_arduino_signal: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/ms_button_status", methods=["GET"])
+def get_ms_button_status():
+    """Browser polls this endpoint to get current MS button states"""
+    try:
+        with ms_button_state_lock:
+            state = ms_button_state.copy()
+        return jsonify({"success": True, "ms1_loaded": state["ms1_loaded"], "ms2_open": state["ms2_open"]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route("/api/get_server_timer/<int:process_no>", methods=["GET"])
 def get_server_timer(process_no):
     """Get server-side timer state for a process.
@@ -3740,6 +3902,24 @@ def api_list_printers():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+def kill_old_bridge_processes():
+    """Kill any previously running arduino bridge processes before starting new ones"""
+    try:
+        import psutil
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = proc.info.get('cmdline', []) or []
+                cmdline_str = ' '.join(str(c) for c in cmdline)
+                if ('arduino_bridge.py' in cmdline_str or 'arduino_bridge_ms.py' in cmdline_str) and proc.pid != os.getpid():
+                    print(f">>> Killing old bridge process (PID {proc.pid})")
+                    proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
 def start_arduino_bridge():
     """Launch arduino_bridge.py as a background subprocess (auto-start with Flask)"""
     try:
@@ -3754,6 +3934,21 @@ def start_arduino_bridge():
     except Exception as e:
         print(f">>> WARNING: Could not start Arduino bridge: {e}")
         print(">>> The web application will continue running without Arduino input.")
+
+def start_arduino_bridge_ms():
+    """Launch arduino_bridge_ms.py as a background subprocess (Material Setter ESP-12E)"""
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        bridge_script = os.path.join(script_dir, "arduino_bridge_ms.py")
+        print("\n>>> Auto-starting Material Setter bridge (ESP-12E) in background...")
+        subprocess.Popen(
+            [sys.executable, bridge_script, "--no-prompt"],
+            cwd=script_dir
+        )
+        print(">>> Material Setter bridge subprocess launched.")
+    except Exception as e:
+        print(f">>> WARNING: Could not start Material Setter bridge: {e}")
+        print(">>> Material Setter buttons will not work without ESP-12E.")
 
 # Start the website when this file is run
 # This code only runs when you click "Run" on this file
@@ -3779,10 +3974,12 @@ if __name__ == "__main__":
     # Check if processes have already started today (to disable manpower warning)
     initialize_processes_started_today()
     
-    # Auto-start Arduino bridge only in the reloader child process
+    # Auto-start Arduino bridges only in the reloader child process
     # (Flask debug=True runs __main__ twice; this prevents double-launch)
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        kill_old_bridge_processes()
         start_arduino_bridge()
+        start_arduino_bridge_ms()
     
     # host="0.0.0.0": Anyone on the network can visit (not just you)
     # port=5000: The website "door number" - like apartment 5000
