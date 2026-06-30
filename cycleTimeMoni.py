@@ -2943,6 +2943,30 @@ def get_ms_operator():
         print(f"Error in get_ms_operator: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+# ==================== MS OPERATOR SELECTION (DISPLAY MODE) ====================
+
+@app.route("/api/ms_operator_selection", methods=["GET"])
+def get_ms_operator_selection():
+    """Get operator display mode (id/name/all) from MySQL"""
+    try:
+        mode = db_manager.get_ms_operator_selection()
+        return jsonify({"success": True, "display_mode": mode})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/ms_operator_selection", methods=["POST"])
+def set_ms_operator_selection():
+    """Set operator display mode (id/name/all) in MySQL"""
+    try:
+        data = request.json
+        mode = data.get('display_mode', 'all')
+        result = db_manager.set_ms_operator_selection(mode)
+        if result:
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": "Invalid display_mode"}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 # ==================== MTRL SET MANPOWER APIs ====================
 
 @app.route("/api/get_mtrl_set_operator", methods=["GET"])

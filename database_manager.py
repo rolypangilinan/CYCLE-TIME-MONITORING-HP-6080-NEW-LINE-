@@ -151,6 +151,16 @@ class DatabaseManager:
             # Insert default single row if it doesn't exist
             cursor.execute("INSERT IGNORE INTO mtrl_set_operator (id) VALUES (1)")
             
+            # Create ms_operator_selection table (single row for display mode preference)
+            create_ms_operator_selection_table = """
+            CREATE TABLE IF NOT EXISTS ms_operator_selection (
+                id INT PRIMARY KEY DEFAULT 1,
+                display_mode VARCHAR(10) DEFAULT 'all'
+            )
+            """
+            cursor.execute(create_ms_operator_selection_table)
+            cursor.execute("INSERT IGNORE INTO ms_operator_selection (id, display_mode) VALUES (1, 'all')")
+            
             # Create bio_break table for operator OUT reasons (shared across all processes)
             create_bio_break_table = """
             CREATE TABLE IF NOT EXISTS bio_break (
@@ -355,6 +365,27 @@ class DatabaseManager:
                 cursor.execute("ALTER TABLE kitting_summary ADD COLUMN IF NOT EXISTS scan_material VARCHAR(100) AFTER qty_unit")
             except:
                 pass
+            
+            # Fix: ensure MAIN_DB UNIQUE KEY is on (job_order, row_no), not just (row_no)
+            try:
+                cursor.execute("""
+                    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+                    WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'main_db' 
+                    AND INDEX_NAME = 'row_no' AND COLUMN_NAME = 'row_no'
+                """, (self.database_name,))
+                if cursor.fetchone()[0] > 0:
+                    cursor.execute("ALTER TABLE MAIN_DB DROP INDEX row_no")
+                    print("Dropped stale UNIQUE KEY (row_no) from MAIN_DB")
+                cursor.execute("""
+                    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS 
+                    WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'main_db' 
+                    AND INDEX_NAME = 'uq_job_row'
+                """, (self.database_name,))
+                if cursor.fetchone()[0] == 0:
+                    cursor.execute("ALTER TABLE MAIN_DB ADD UNIQUE KEY uq_job_row (job_order, row_no)")
+                    print("Added UNIQUE KEY uq_job_row (job_order, row_no) to MAIN_DB")
+            except Exception as e:
+                print(f"Note: MAIN_DB index check: {e}")
             
             # Create joborder_plan table for tracking kitting progress per job order
             # This tracks each kitting scan with incrementing result and decrementing balance
@@ -1712,25 +1743,15 @@ class DatabaseManager:
             
             today = datetime.now().strftime('%Y-%m-%d')
             
-            # Insert new row or update existing
-            # remaining_qty is updated from the UI (already deducted after kitting)
-            # Set id = row_no to ensure sequential IDs from 1 to 25
-            upsert_query = """
+            # DELETE + INSERT approach: remove old rows for this job_order, then insert fresh
+            # This prevents cross-JO corruption (old code used id=row_no which collided across JOs)
+            cursor.execute("DELETE FROM MAIN_DB WHERE job_order = %s", (job_order,))
+            
+            insert_query = """
             INSERT INTO MAIN_DB 
-            (id, job_order, model_code, row_no, material_description, qty_unit, scan_material, 
+            (job_order, model_code, row_no, material_description, qty_unit, scan_material, 
              lot_no, lot_qty, remaining_qty, date_today)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE
-                id = VALUES(id),
-                job_order = VALUES(job_order),
-                model_code = VALUES(model_code),
-                material_description = VALUES(material_description),
-                qty_unit = VALUES(qty_unit),
-                scan_material = VALUES(scan_material),
-                lot_no = VALUES(lot_no),
-                lot_qty = VALUES(lot_qty),
-                remaining_qty = VALUES(remaining_qty),
-                date_today = VALUES(date_today)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             
             for material in materials:
@@ -1745,7 +1766,6 @@ class DatabaseManager:
                 row_no = material.get('row_no', 0)
                 
                 record = (
-                    row_no,  # id = row_no for sequential IDs 1-25
                     job_order,
                     model_code,
                     row_no,
@@ -1757,7 +1777,7 @@ class DatabaseManager:
                     remaining_qty,
                     today
                 )
-                cursor.execute(upsert_query, record)
+                cursor.execute(insert_query, record)
             
             connection.commit()
             print(f"Saved {len(materials)} records to MAIN_DB for job order: {job_order}")
@@ -3224,6 +3244,54 @@ class DatabaseManager:
             return True
         except Exception as e:
             print(f"Error saving change model reason: {e}")
+            return False
+        finally:
+            if cursor: cursor.close()
+            if connection: connection.close()
+
+    def get_ms_operator_selection(self):
+        """Get the current operator display mode from ms_operator_selection table"""
+        connection = None
+        cursor = None
+        try:
+            connection = mysql.connector.connect(
+                host=self.host, port=self.port,
+                user=self.user, password=self.password,
+                database=self.database_name, consume_results=True
+            )
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT display_mode FROM ms_operator_selection WHERE id = 1")
+            result = cursor.fetchone()
+            if result:
+                return result['display_mode']
+            return 'all'
+        except Exception as e:
+            print(f"Error getting ms_operator_selection: {e}")
+            return 'all'
+        finally:
+            if cursor: cursor.close()
+            if connection: connection.close()
+
+    def set_ms_operator_selection(self, display_mode):
+        """Set the operator display mode in ms_operator_selection table"""
+        connection = None
+        cursor = None
+        try:
+            if display_mode not in ('id', 'name', 'all'):
+                return False
+            connection = mysql.connector.connect(
+                host=self.host, port=self.port,
+                user=self.user, password=self.password,
+                database=self.database_name, consume_results=True
+            )
+            cursor = connection.cursor()
+            cursor.execute("UPDATE ms_operator_selection SET display_mode = %s WHERE id = 1", (display_mode,))
+            if cursor.rowcount == 0:
+                cursor.execute("INSERT INTO ms_operator_selection (id, display_mode) VALUES (1, %s)", (display_mode,))
+            connection.commit()
+            return True
+        except Exception as e:
+            print(f"Error setting ms_operator_selection: {e}")
             return False
         finally:
             if cursor: cursor.close()
