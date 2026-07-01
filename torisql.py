@@ -39,8 +39,15 @@ def connect():
     print("Connected!")
 
 def getJobOrderMaterials(job_order):
-    global cursor
+    global cursor, conn
     global isToriMode
+
+    # Reconnect if connection is dead/stale
+    try:
+        conn.execute("SELECT 1")
+    except:
+        print("Tori SQL connection lost - reconnecting...")
+        connect()
 
     # if job_order is None:
     #     job_order = '3J73802302'  # Default for testing

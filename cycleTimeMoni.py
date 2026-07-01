@@ -4000,7 +4000,7 @@ if __name__ == "__main__":
     
     # Auto-start Arduino bridges only in the reloader child process
     # (Flask debug=True runs __main__ twice; this prevents double-launch)
-    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
         kill_old_bridge_processes()
         start_arduino_bridge()
         start_arduino_bridge_ms()
@@ -4009,4 +4009,4 @@ if __name__ == "__main__":
     # port=5000: The website "door number" - like apartment 5000
     # debug=True: Shows helpful error messages if something breaks
     # app.run(host="192.168.3.220", port=5000, debug=True)  #host="0.0.0.0", port=5000 for porthost
-    app.run(host="0.0.0.0", port=5001, debug=True)  #host="0.0.0.0", port=5000 for porthost-
+    app.run(host="0.0.0.0", port=5001, debug=False)  #host="0.0.0.0", port=5000 for porthost-
